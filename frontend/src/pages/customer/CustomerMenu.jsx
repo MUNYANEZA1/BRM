@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Minus, ShoppingCart, Search, Filter } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { Plus, Minus, ShoppingCart, Search, Filter, LogOut } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 const CustomerMenu = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { isAuthenticated, user, logout } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [cart, setCart] = useState([]);
@@ -177,17 +180,52 @@ const CustomerMenu = () => {
               )}
             </div>
             
-            <button
-              onClick={() => setShowCart(!showCart)}
-              className="relative p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-            >
-              <ShoppingCart className="h-5 w-5" />
-              {getCartItemsCount() > 0 && (
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                  {getCartItemsCount()}
-                </span>
+            <div className="flex items-center gap-4">
+              {isAuthenticated ? (
+                <>
+                  <div className="text-sm text-gray-700">
+                    Welcome, <span className="font-semibold">{user?.name || 'Guest'}</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      logout();
+                      navigate('/login');
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => navigate('/login')}
+                    className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                  >
+                    Login
+                  </button>
+                  <button
+                    onClick={() => navigate('/register')}
+                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+                  >
+                    Register
+                  </button>
+                </>
               )}
-            </button>
+              
+              <button
+                onClick={() => setShowCart(!showCart)}
+                className="relative p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                <ShoppingCart className="h-5 w-5" />
+                {getCartItemsCount() > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {getCartItemsCount()}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -367,9 +405,18 @@ const CustomerMenu = () => {
                         </span>
                       </div>
                       
-                      <button className="btn-primary w-full">
-                        Place Order
-                      </button>
+                      {isAuthenticated ? (
+                        <button className="btn-primary w-full">
+                          Place Order
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => navigate('/login')}
+                          className="btn-primary w-full"
+                        >
+                          Login to Order
+                        </button>
+                      )}
                     </div>
                   </>
                 )}
