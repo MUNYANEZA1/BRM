@@ -65,11 +65,11 @@ const register = async (req, res) => {
       });
     }
 
-    // in production we still log the error on the server;
-    // return minimal info to client but include message when not in prod
+    // always log and return the real error message for easier debugging
+    console.error('Registration internal error:', error);
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Server error during registration' : error.message
+      message: error.message || 'Server error during registration'
     });
   }
 };
@@ -127,9 +127,10 @@ const login = async (req, res) => {
     });
   } catch (error) {
     console.error('Login error:', error);
+    console.error('Login internal error:', error);
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Server error during login' : error.message
+      message: error.message || 'Server error during login'
     });
   }
 };

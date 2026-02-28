@@ -104,6 +104,10 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV}`);
+  // log some key env variables (mask sensitive values)
+  console.log('MONGODB_URI', process.env.MONGODB_URI ? process.env.MONGODB_URI.replace(/(mongodb(?:\+srv)?:\/\/)(.*)/, '$1***') : 'not set');
+  console.log('JWT_SECRET', process.env.JWT_SECRET ? '***' : 'not set');
+  console.log('FRONTEND_URL', process.env.FRONTEND_URL || 'not set');
 });
 
 module.exports = app;
