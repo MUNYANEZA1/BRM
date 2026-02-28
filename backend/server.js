@@ -64,6 +64,17 @@ app.get('/', (req, res) => {
   });
 });
 
+// simple health check including database status
+app.get('/health', async (req, res) => {
+  const dbState = mongoose.connection.readyState; // 0 = disconnected, 1 = connected
+  res.json({
+    status: 'ok',
+    env: process.env.NODE_ENV,
+    dbState,
+    dbStateDesc: ['disconnected', 'connected', 'connecting', 'disconnecting'][dbState] || 'unknown'
+  });
+});
+
 // Import routes (will be created in next phases)
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));

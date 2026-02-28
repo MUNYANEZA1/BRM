@@ -65,9 +65,11 @@ const register = async (req, res) => {
       });
     }
 
+    // in production we still log the error on the server;
+    // return minimal info to client but include message when not in prod
     res.status(500).json({
       success: false,
-      message: 'Server error during registration'
+      message: process.env.NODE_ENV === 'production' ? 'Server error during registration' : error.message
     });
   }
 };
@@ -127,7 +129,7 @@ const login = async (req, res) => {
     console.error('Login error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error during login'
+      message: process.env.NODE_ENV === 'production' ? 'Server error during login' : error.message
     });
   }
 };
