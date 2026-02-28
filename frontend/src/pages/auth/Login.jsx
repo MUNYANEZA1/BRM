@@ -132,15 +132,7 @@ const Login = () => {
           </p>
         </div>
 
-        {/* Demo credentials */}
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <p className="text-xs text-gray-600 mb-2 font-medium">Demo Credentials:</p>
-          <div className="text-xs text-gray-500 space-y-1">
-            <p><strong>Admin:</strong> admin / password123</p>
-            <p><strong>Manager:</strong> manager / password123</p>
-            <p><strong>Waiter:</strong> waiter / password123</p>
-          </div>
-        </div>
+        {/* Demo credentials removed - use real account data */}
       </div>
     </div>
   );
