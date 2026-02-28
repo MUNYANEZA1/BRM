@@ -8,6 +8,10 @@ require('dotenv').config();
 
 const app = express();
 
+// If running behind a proxy (Render, Heroku, Vercel serverless), trust proxy headers
+// so rate-limiting and IP detection work correctly.
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 
@@ -19,43 +23,9 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // CORS configuration
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Allow all origins in development
-    if (process.env.NODE_ENV === 'development') {
-      return callback(null, true);
-    }
-    
-    // In production, specify allowed origins
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:3002',
-      'http://localhost:5173',
-      'https://your-frontend-domain.com'
-    ];
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: [
-    'Origin',
-    'X-Requested-With',
-    'Content-Type',
-    'Accept',
-    'Authorization',
-    'Cache-Control',
-    'Pragma'
-  ]
-}));
+// Use centralized CORS middleware (see middleware/cors.js)
+const customCors = require('./middleware/cors');
+app.use(customCors);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -72,13 +42,18 @@ app.use((req, res, next) => {
 // Logging middleware
 app.use(morgan('combined'));
 
-// MongoDB connection
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('MongoDB connected successfully'))
-.catch((err) => console.error('MongoDB connection error:', err));
+// MongoDB connection - validate URI scheme early to provide clearer errors
+if (!process.env.MONGODB_URI || (!process.env.MONGODB_URI.startsWith('mongodb://') && !process.env.MONGODB_URI.startsWith('mongodb+srv://'))) {
+  console.error('MongoDB connection error: Invalid or missing MONGODB_URI. It must start with "mongodb://" or "mongodb+srv://"');
+  console.error('Current MONGODB_URI:', process.env.MONGODB_URI);
+} else {
+  mongoose.connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log('MongoDB connected successfully'))
+  .catch((err) => console.error('MongoDB connection error:', err));
+}
 
 // Routes
 app.get('/', (req, res) => {
