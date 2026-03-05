@@ -92,8 +92,7 @@ const inventoryItemSchema = new mongoose.Schema({
 });
 
 // Indexes for better query performance
-inventoryItemSchema.index({ name: 1 });
-inventoryItemSchema.index({ sku: 1 });
+// Note: name and sku have unique: true, so no explicit index needed
 inventoryItemSchema.index({ category: 1 });
 inventoryItemSchema.index({ currentStock: 1 });
 inventoryItemSchema.index({ isActive: 1 });

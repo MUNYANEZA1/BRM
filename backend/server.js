@@ -36,8 +36,7 @@ app.use(limiter);
 // Use centralized CORS middleware (see middleware/cors.js)
 const customCors = require('./middleware/cors');
 app.use(customCors);
-// make sure OPTIONS preflight requests are handled globally
-app.options('*', customCors);
+// Note: cors middleware automatically handles OPTIONS preflight requests
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -62,10 +61,7 @@ if (!mongoUri || (!mongoUri.startsWith('mongodb://') && !mongoUri.startsWith('mo
   console.error('   Current value:', mongoUri ? `${mongoUri.substring(0, 20)}...` : 'not set');
   process.exit(1);
 } else {
-  mongoose.connect(mongoUri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  mongoose.connect(mongoUri)
   .then(() => console.log('✅ MongoDB connected successfully'))
   .catch((err) => {
     console.error('❌ MongoDB connection error:', err.message);

@@ -46,7 +46,7 @@ const tableSchema = new mongoose.Schema({
 });
 
 // Indexes for better query performance
-tableSchema.index({ number: 1 });
+// Note: number and qrCode have unique: true, so no explicit index needed
 tableSchema.index({ status: 1 });
 tableSchema.index({ location: 1 });
 tableSchema.index({ isActive: 1 });
