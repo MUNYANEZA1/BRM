@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Minus, ShoppingCart, Search, Filter, LogOut } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
+import { menuAPI } from '../../services/api';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const CustomerMenu = () => {
   const location = useLocation();
@@ -20,89 +23,48 @@ const CustomerMenu = () => {
     setTableId(table);
   }, [location]);
 
-  // Mock data
-  const categories = [
-    { id: 'all', name: 'All Items', icon: '🍽️' },
-    { id: 'appetizers', name: 'Appetizers', icon: '🥗' },
-    { id: 'main_courses', name: 'Main Courses', icon: '🍖' },
-    { id: 'beverages', name: 'Beverages', icon: '🥤' },
-    { id: 'desserts', name: 'Desserts', icon: '🍰' },
-  ];
+  // Fetch categories from API
+  const { data: categoriesData = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      try {
+        const response = await menuAPI.getCategories();
+        const data = response.data.data?.categories || [];
+        return [
+          { id: 'all', name: 'All Items', icon: '🍽️' },
+          ...data.map(cat => ({
+            id: cat._id,
+            name: cat.name,
+            icon: cat.icon || '🍽️'
+          }))
+        ];
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+        return [{ id: 'all', name: 'All Items', icon: '🍽️' }];
+      }
+    },
+    staleTime: 60000,
+    refetchOnMount: 'stale',
+  });
 
-  const menuItems = [
-    {
-      id: 1,
-      name: 'Grilled Chicken Breast',
-      description: 'Tender grilled chicken breast served with seasonal vegetables and herb butter',
-      category: 'main_courses',
-      price: 8000,
-      image: '/api/placeholder/300/200',
-      isAvailable: true,
-      preparationTime: 25,
-      allergens: ['gluten'],
-      tags: ['protein', 'healthy', 'popular']
+  // Fetch menu items from API
+  const { data: menuItems = [], isLoading, isError } = useQuery({
+    queryKey: ['menuItems'],
+    queryFn: async () => {
+      try {
+        const response = await menuAPI.getMenuItems({ limit: 100 });
+        return response.data.data?.menuItems || [];
+      } catch (error) {
+        console.error('Error fetching menu items:', error);
+        return [];
+      }
     },
-    {
-      id: 2,
-      name: 'Caesar Salad',
-      description: 'Fresh romaine lettuce with caesar dressing, croutons, and parmesan cheese',
-      category: 'appetizers',
-      price: 6000,
-      image: '/api/placeholder/300/200',
-      isAvailable: true,
-      preparationTime: 10,
-      allergens: ['dairy', 'eggs'],
-      tags: ['vegetarian', 'fresh']
-    },
-    {
-      id: 3,
-      name: 'Beef Burger',
-      description: 'Juicy beef patty with lettuce, tomato, onion, and special sauce on a brioche bun',
-      category: 'main_courses',
-      price: 12000,
-      image: '/api/placeholder/300/200',
-      isAvailable: true,
-      preparationTime: 20,
-      allergens: ['gluten', 'dairy'],
-      tags: ['popular', 'comfort food']
-    },
-    {
-      id: 4,
-      name: 'Coca Cola',
-      description: 'Classic refreshing cola drink served ice cold',
-      category: 'beverages',
-      price: 1500,
-      image: '/api/placeholder/300/200',
-      isAvailable: false,
-      preparationTime: 1,
-      allergens: [],
-      tags: ['cold', 'refreshing']
-    },
-    {
-      id: 5,
-      name: 'Chocolate Cake',
-      description: 'Rich chocolate cake with chocolate ganache and fresh berries',
-      category: 'desserts',
-      price: 4500,
-      image: '/api/placeholder/300/200',
-      isAvailable: true,
-      preparationTime: 5,
-      allergens: ['dairy', 'eggs', 'gluten'],
-      tags: ['sweet', 'popular']
-    },
-    {
-      id: 6,
-      name: 'Fish & Chips',
-      description: 'Beer-battered fish with crispy fries and tartar sauce',
-      category: 'main_courses',
-      price: 10000,
-      image: '/api/placeholder/300/200',
-      isAvailable: true,
-      preparationTime: 18,
-      allergens: ['gluten', 'fish'],
-      tags: ['crispy', 'comfort food']
-    }
-  ];
+    staleTime: 30000,
+    refetchOnMount: 'stale',
+    refetchOnWindowFocus: true,
+  });
+
+  const categories = categoriesData;
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-RW', {
@@ -113,18 +75,22 @@ const CustomerMenu = () => {
   };
 
   const filteredItems = menuItems.filter(item => {
-    const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
+    const itemId = item._id || item.id;
+    const categoryId = item.category?._id || item.category;
+    const matchesCategory = selectedCategory === 'all' || categoryId === selectedCategory;
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.description.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesCategory && matchesSearch && item.isAvailable;
+                         (item.description || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const isAvailable = item.isAvailable !== false;
+    return matchesCategory && matchesSearch && isAvailable;
   });
 
   const addToCart = (item) => {
     setCart(prevCart => {
-      const existingItem = prevCart.find(cartItem => cartItem.id === item.id);
+      const itemId = item._id || item.id;
+      const existingItem = prevCart.find(cartItem => (cartItem._id || cartItem.id) === itemId);
       if (existingItem) {
         return prevCart.map(cartItem =>
-          cartItem.id === item.id
+          (cartItem._id || cartItem.id) === itemId
             ? { ...cartItem, quantity: cartItem.quantity + 1 }
             : cartItem
         );
@@ -137,7 +103,8 @@ const CustomerMenu = () => {
   const removeFromCart = (itemId) => {
     setCart(prevCart => {
       return prevCart.reduce((acc, cartItem) => {
-        if (cartItem.id === itemId) {
+        const cartItemId = cartItem._id || cartItem.id;
+        if (cartItemId === itemId) {
           if (cartItem.quantity > 1) {
             acc.push({ ...cartItem, quantity: cartItem.quantity - 1 });
           }
@@ -150,7 +117,7 @@ const CustomerMenu = () => {
   };
 
   const getCartItemQuantity = (itemId) => {
-    const cartItem = cart.find(item => item.id === itemId);
+    const cartItem = cart.find(item => (item._id || item.id) === itemId);
     return cartItem ? cartItem.quantity : 0;
   };
 
@@ -273,34 +240,50 @@ const CustomerMenu = () => {
             </div>
 
             {/* Menu Items Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredItems.map((item) => {
-                const quantity = getCartItemQuantity(item.id);
-                return (
-                  <div key={item.id} className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-                    <div className="relative">
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        className="w-full h-48 object-cover"
-                      />
-                      {item.tags.includes('popular') && (
-                        <span className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                          Popular
-                        </span>
-                      )}
-                      <div className="absolute top-2 right-2 bg-white text-gray-700 text-xs px-2 py-1 rounded-full">
-                        {item.preparationTime} min
+            {isLoading ? (
+              <div className="flex justify-center items-center py-12">
+                <LoadingSpinner />
+              </div>
+            ) : isError ? (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+                <p>Failed to load menu items. Please try again later.</p>
+              </div>
+            ) : filteredItems.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500">No menu items found.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredItems.map((item) => {
+                  const itemId = item._id || item.id;
+                  const quantity = getCartItemQuantity(itemId);
+                  return (
+                    <div key={itemId} className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                      <div className="relative">
+                        <img
+                          src={item.image || '/api/placeholder/300/200'}
+                          alt={item.name}
+                          className="w-full h-48 object-cover"
+                        />
+                        {(item.tags || []).includes('popular') && (
+                          <span className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                            Popular
+                          </span>
+                        )}
+                        {item.preparationTime && (
+                          <div className="absolute top-2 right-2 bg-white text-gray-700 text-xs px-2 py-1 rounded-full">
+                            {item.preparationTime} min
+                          </div>
+                        )}
                       </div>
-                    </div>
-                    
-                    <div className="p-4">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.name}</h3>
-                      <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.description}</p>
                       
-                      {item.allergens.length > 0 && (
-                        <div className="mb-3">
-                          <p className="text-xs text-gray-500">
+                      <div className="p-4">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.name}</h3>
+                        <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.description || 'No description'}</p>
+                        
+                        {(item.allergens || []).length > 0 && (
+                          <div className="mb-3">
+                            <p className="text-xs text-gray-500">
                             Contains: {item.allergens.join(', ')}
                           </p>
                         </div>
@@ -322,7 +305,7 @@ const CustomerMenu = () => {
                         ) : (
                           <div className="flex items-center space-x-2">
                             <button
-                              onClick={() => removeFromCart(item.id)}
+                              onClick={() => removeFromCart(itemId)}
                               className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300"
                             >
                               <Minus className="h-4 w-4" />
@@ -341,11 +324,10 @@ const CustomerMenu = () => {
                       </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-
-            {filteredItems.length === 0 && (
+                  );
+                })}
+              </div>
+            )}            {filteredItems.length === 0 && (
               <div className="text-center py-12">
                 <div className="text-gray-500">
                   <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -370,31 +352,34 @@ const CustomerMenu = () => {
                 ) : (
                   <>
                     <div className="space-y-4 mb-6">
-                      {cart.map((item) => (
-                        <div key={item.id} className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <h4 className="text-sm font-medium text-gray-900">{item.name}</h4>
-                            <p className="text-sm text-gray-500">{formatCurrency(item.price)} each</p>
+                      {cart.map((item) => {
+                        const itemId = item._id || item.id;
+                        return (
+                          <div key={itemId} className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <h4 className="text-sm font-medium text-gray-900">{item.name}</h4>
+                              <p className="text-sm text-gray-500">{formatCurrency(item.price)} each</p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => removeFromCart(itemId)}
+                                className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300"
+                              >
+                                <Minus className="h-3 w-3" />
+                              </button>
+                              <span className="font-medium text-gray-900 min-w-[1.5rem] text-center">
+                                {item.quantity}
+                              </span>
+                              <button
+                                onClick={() => addToCart(item)}
+                                className="w-6 h-6 bg-primary-600 text-white rounded-full flex items-center justify-center hover:bg-primary-700"
+                              >
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <button
-                              onClick={() => removeFromCart(item.id)}
-                              className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300"
-                            >
-                              <Minus className="h-3 w-3" />
-                            </button>
-                            <span className="font-medium text-gray-900 min-w-[1.5rem] text-center">
-                              {item.quantity}
-                            </span>
-                            <button
-                              onClick={() => addToCart(item)}
-                              className="w-6 h-6 bg-primary-600 text-white rounded-full flex items-center justify-center hover:bg-primary-700"
-                            >
-                              <Plus className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                     
                     <div className="border-t pt-4">

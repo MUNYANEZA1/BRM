@@ -4,7 +4,7 @@ const { generateToken, generateRefreshToken } = require('../utils/jwt');
 // Register new user
 const register = async (req, res) => {
   try {
-    const { username, email, password, firstName, lastName, role, phone } = req.body;
+    const { username, email, password, firstName, lastName, phone } = req.body;
 
     // Validate required fields
     if (!username || !email || !password || !firstName || !lastName) {
@@ -26,13 +26,10 @@ const register = async (req, res) => {
       });
     }
 
-    // Only admin can create admin users
-    if (role === 'admin' && req.user && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Only admin can create admin users'
-      });
-    }
+    // For public registration we ignore any supplied role and always use admin.
+    // Admins creating users via the dashboard can still specify a role using the
+    // separate users API, not the public register endpoint.
+    const assignedRole = 'admin';
 
     // Create new user
     const user = new User({
@@ -41,7 +38,7 @@ const register = async (req, res) => {
       password,
       firstName,
       lastName,
-      role: role || 'waiter',
+      role: assignedRole,
       phone,
       createdBy: req.user ? req.user._id : null
     });

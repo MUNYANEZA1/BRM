@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { Eye, EyeOff, UserPlus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import { USER_ROLES } from '../../utils/constants';
+
 
 const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -155,28 +155,7 @@ const Register = () => {
             )}
           </div>
 
-          {/* Role */}
-          <div>
-            <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
-              Role
-            </label>
-            <select
-              {...register('role', {
-                required: 'Role is required',
-              })}
-              className="input w-full"
-            >
-              <option value="">Select a role</option>
-              <option value={USER_ROLES.WAITER}>Waiter</option>
-              <option value={USER_ROLES.CASHIER}>Cashier</option>
-              <option value={USER_ROLES.STOCK_MANAGER}>Stock Manager</option>
-              <option value={USER_ROLES.MANAGER}>Manager</option>
-              <option value={USER_ROLES.ADMIN}>Admin</option>
-            </select>
-            {errors.role && (
-              <p className="mt-1 text-sm text-red-600">{errors.role.message}</p>
-            )}
-          </div>
+          {/* role is not selectable during registration – default admin is assigned on server */}
 
           {/* Password */}
           <div>

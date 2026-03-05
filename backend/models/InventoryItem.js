@@ -75,6 +75,10 @@ const inventoryItemSchema = new mongoose.Schema({
     trim: true,
     maxlength: [100, 'Location cannot exceed 100 characters']
   },
+  image: {
+    type: String,
+    default: null
+  },
   isActive: {
     type: Boolean,
     default: true

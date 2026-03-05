@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { inventoryAPI } from '../services/api';
+import { inventoryAPI, uploadAPI } from '../services/api';
 import { devLog } from '../utils/logger';
 
 const Inventory = () => {
@@ -30,6 +30,10 @@ const Inventory = () => {
     operation: 'add'
   });
   const queryClient = useQueryClient();
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [editImageFile, setEditImageFile] = useState(null);
+  const [editImagePreview, setEditImagePreview] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -46,7 +50,8 @@ const Inventory = () => {
       email: ''
     },
     expiryDate: '',
-    location: ''
+    location: '',
+    image: ''
   });
 
   // Fetch inventory items from API
@@ -77,6 +82,8 @@ const Inventory = () => {
       toast.success(response.data.message || 'Item added successfully');
       await queryClient.invalidateQueries({ queryKey: ['inventoryItems'] });
       setIsModalOpen(false);
+      setImageFile(null);
+      setImagePreview(null);
       setFormData({
         name: '',
         description: '',
@@ -93,7 +100,8 @@ const Inventory = () => {
           email: ''
         },
         expiryDate: '',
-        location: ''
+        location: '',
+        image: ''
       });
     },
     onError: (error) => {
@@ -109,6 +117,8 @@ const Inventory = () => {
       toast.success(response.data.message || 'Item updated successfully');
       await queryClient.invalidateQueries({ queryKey: ['inventoryItems'] });
       setIsEditModalOpen(false);
+      setEditImageFile(null);
+      setEditImagePreview(null);
       setSelectedItem(null);
     },
     onError: (error) => {
@@ -172,8 +182,16 @@ const Inventory = () => {
       unitCost: item.unitCost,
       supplier: item.supplier || { name: '', contact: '', email: '' },
       expiryDate: item.expiryDate ? new Date(item.expiryDate).toISOString().split('T')[0] : '',
-      location: item.location || ''
+      location: item.location || '',
+      image: item.image || ''
     });
+    // Set current image as preview
+    if (item.image) {
+      setEditImagePreview(item.image);
+    } else {
+      setEditImagePreview(null);
+    }
+    setEditImageFile(null);
     setIsEditModalOpen(true);
   };
 
@@ -188,12 +206,53 @@ const Inventory = () => {
     setIsDeleteModalOpen(true);
   };
 
-  const handleEditSubmit = (e) => {
+  const handleEditImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image size must be less than 5MB');
+        return;
+      }
+      
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please upload a valid image file');
+        return;
+      }
+
+      setEditImageFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
       toast.error('Item name is required');
       return;
     }
+    
+    // Upload image if a new one was selected
+    if (editImageFile) {
+      try {
+        const uploadResponse = await uploadAPI.uploadImage(editImageFile);
+        const imageUrl = uploadResponse.data.data?.imageUrl || uploadResponse.data.data?.url;
+        if (imageUrl) {
+          formData.image = imageUrl;
+        }
+      } catch (error) {
+        console.error('Image upload error:', error);
+        toast.error('Failed to upload image. Proceeding without image update.');
+      }
+    }
+    
     updateItemMutation.mutate({ id: selectedItem._id, data: formData });
   };
 
@@ -391,6 +450,32 @@ const Inventory = () => {
     }
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image size must be less than 5MB');
+        return;
+      }
+      
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please upload a valid image file');
+        return;
+      }
+
+      setImageFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -406,6 +491,20 @@ const Inventory = () => {
     if (formData.unitCost <= 0) {
       toast.error('Unit cost must be greater than 0');
       return;
+    }
+
+    // Upload image if selected
+    if (imageFile) {
+      try {
+        const uploadResponse = await uploadAPI.uploadImage(imageFile);
+        const imageUrl = uploadResponse.data.data?.imageUrl || uploadResponse.data.data?.url;
+        if (imageUrl) {
+          formData.image = imageUrl;
+        }
+      } catch (error) {
+        console.error('Image upload error:', error);
+        toast.error('Failed to upload image. Proceeding without image.');
+      }
     }
 
     createItemMutation.mutate(formData);
@@ -752,7 +851,11 @@ const Inventory = () => {
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
               <h2 className="text-xl font-bold text-gray-900">Edit Item: {selectedItem.name}</h2>
               <button 
-                onClick={() => setIsEditModalOpen(false)}
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setEditImageFile(null);
+                  setEditImagePreview(null);
+                }}
                 className="text-gray-500 hover:text-gray-700"
               >
                 <X className="h-6 w-6" />
@@ -791,6 +894,36 @@ const Inventory = () => {
                   className="input w-full"
                   rows="2"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Item Image</label>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      id="edit-image-input"
+                      onChange={handleEditImageChange}
+                      accept="image/*"
+                      className="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-md file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-primary-50 file:text-primary-700
+                        hover:file:bg-primary-100"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">PNG, JPG, WebP up to 5MB (optional)</p>
+                  </div>
+                  {editImagePreview && (
+                    <div className="w-20 h-20 rounded-lg overflow-hidden border-2 border-gray-200 flex-shrink-0">
+                      <img 
+                        src={editImagePreview} 
+                        alt="Preview" 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -899,7 +1032,11 @@ const Inventory = () => {
               <div className="border-t border-gray-200 pt-4 flex justify-end space-x-3">
                 <button
                   type="button"
-                  onClick={() => setIsEditModalOpen(false)}
+                  onClick={() => {
+                    setIsEditModalOpen(false);
+                    setEditImageFile(null);
+                    setEditImagePreview(null);
+                  }}
                   className="btn-outline cursor-pointer"
                   disabled={updateItemMutation.isPending}
                 >
@@ -1071,7 +1208,11 @@ const Inventory = () => {
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
               <h2 className="text-xl font-bold text-gray-900">Add Inventory Item</h2>
               <button 
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setImageFile(null);
+                  setImagePreview(null);
+                }}
                 className="text-gray-500 hover:text-gray-700"
               >
                 <X className="h-6 w-6" />
@@ -1125,6 +1266,40 @@ const Inventory = () => {
                   placeholder="Item description"
                   rows="2"
                 />
+              </div>
+
+              {/* Image Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Item Image
+                </label>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      id="image-input"
+                      name="image"
+                      onChange={handleImageChange}
+                      accept="image/*"
+                      className="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-md file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-primary-50 file:text-primary-700
+                        hover:file:bg-primary-100"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">PNG, JPG, WebP up to 5MB</p>
+                  </div>
+                  {imagePreview && (
+                    <div className="w-20 h-20 rounded-lg overflow-hidden border-2 border-gray-200 flex-shrink-0">
+                      <img 
+                        src={imagePreview} 
+                        alt="Preview" 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Category & Unit */}
@@ -1316,7 +1491,11 @@ const Inventory = () => {
               <div className="border-t border-gray-200 pt-4 flex justify-end space-x-3">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setImageFile(null);
+                    setImagePreview(null);
+                  }}
                   className="btn-outline cursor-pointer"
                   disabled={createItemMutation.isPending}
                 >
