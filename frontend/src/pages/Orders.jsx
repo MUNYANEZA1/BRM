@@ -105,7 +105,7 @@ const Orders = () => {
 
   useEffect(() => {
     if (orders.length > 0) {
-      console.log('Orders loaded:', orders);
+      devLog('Orders loaded:', orders);
     }
   }, [orders]);
 

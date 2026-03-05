@@ -36,6 +36,8 @@ app.use(limiter);
 // Use centralized CORS middleware (see middleware/cors.js)
 const customCors = require('./middleware/cors');
 app.use(customCors);
+// make sure OPTIONS preflight requests are handled globally
+app.options('*', customCors);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -105,6 +107,11 @@ app.use('/api/settings', require('./routes/settings'));
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
+  // Ensure CORS header is always present even on errors
+  if (!res.get('Access-Control-Allow-Origin')) {
+    const origin = process.env.FRONTEND_URL || '*';
+    res.set('Access-Control-Allow-Origin', origin);
+  }
   res.status(500).json({ 
     message: 'Something went wrong!',
     error: process.env.NODE_ENV === 'development' ? err.message : {}
@@ -125,6 +132,11 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('MONGODB_URI', process.env.MONGODB_URI ? process.env.MONGODB_URI.replace(/(mongodb(?:\+srv)?:\/\/)(.*)/, '$1***') : 'not set');
   console.log('JWT_SECRET', process.env.JWT_SECRET ? '***' : 'not set');
   console.log('FRONTEND_URL', process.env.FRONTEND_URL || 'not set');
+
+  if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL && process.env.ALLOW_ALL_ORIGINS !== 'true') {
+    console.warn('⚠️ FRONTEND_URL is not configured. CORS may block browser requests.');
+    console.warn('   Set FRONTEND_URL or use ALLOW_ALL_ORIGINS=true temporarily.');
+  }
 });
 
 module.exports = app;

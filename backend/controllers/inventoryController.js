@@ -44,7 +44,9 @@ const getAllInventoryItems = async (req, res) => {
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    console.log('Inventory filter:', filter);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Inventory filter:', filter);
+    }
     
     const inventoryItems = await InventoryItem.find(filter)
       .populate('createdBy', 'username firstName lastName')
@@ -54,7 +56,9 @@ const getAllInventoryItems = async (req, res) => {
 
     const total = await InventoryItem.countDocuments(filter);
     
-    console.log('Found inventory items:', inventoryItems.length);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Found inventory items:', inventoryItems.length);
+    }
 
     res.json({
       success: true,
@@ -282,8 +286,10 @@ const updateStock = async (req, res) => {
     const oldStock = inventoryItem.currentStock;
     await inventoryItem.updateStock(quantity, operation);
 
-    // Log stock movement (you might want to create a StockMovement model for this)
-    console.log(`Stock updated for ${inventoryItem.name}: ${oldStock} -> ${inventoryItem.currentStock} (${operation} ${quantity}) - Reason: ${reason || 'Not specified'}`);
+    // Log stock movement (development only – consider using a proper audit model)
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Stock updated for ${inventoryItem.name}: ${oldStock} -> ${inventoryItem.currentStock} (${operation} ${quantity}) - Reason: ${reason || 'Not specified'}`);
+    }
 
     res.json({
       success: true,

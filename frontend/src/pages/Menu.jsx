@@ -3,6 +3,7 @@ import { Plus, Search, Edit, Trash2, Eye, ToggleLeft, ToggleRight, X } from 'luc
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { menuAPI } from '../services/api';
+import { devLog } from '../utils/logger';
 
 const Menu = () => {
   const [activeTab, setActiveTab] = useState('items');
@@ -289,13 +290,13 @@ const Menu = () => {
 
   useEffect(() => {
     if (menuItems.length > 0) {
-      console.log('Menu items loaded:', menuItems);
+      devLog('Menu items loaded:', menuItems);
     }
   }, [menuItems]);
 
   useEffect(() => {
     if (categories.length > 0) {
-      console.log('Categories loaded:', categories);
+      devLog('Categories loaded:', categories);
     }
   }, [categories]);
 

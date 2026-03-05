@@ -3,6 +3,7 @@ import { Plus, QrCode, Users, MapPin, Clock, Edit, Trash2, X } from 'lucide-reac
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { tablesAPI } from '../services/api';
+import { devLog } from '../utils/logger';
 
 const Tables = () => {
   const [viewMode, setViewMode] = useState('grid');
@@ -187,7 +188,7 @@ const Tables = () => {
 
   useEffect(() => {
     if (tables.length > 0) {
-      console.log('Tables loaded:', tables);
+      devLog('Tables loaded:', tables);
     }
   }, [tables]);
 

@@ -14,6 +14,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { inventoryAPI } from '../services/api';
+import { devLog } from '../utils/logger';
 
 const Inventory = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -54,7 +55,7 @@ const Inventory = () => {
     queryFn: async () => {
       try {
         const response = await inventoryAPI.getInventoryItems({ limit: 100 });
-        console.log('Inventory data fetched:', response.data.data.inventoryItems);
+        devLog('Inventory data fetched:', response.data.data.inventoryItems);
         return response.data.data.inventoryItems || [];
       } catch (err) {
         console.error('Error fetching inventory:', err);
@@ -147,12 +148,12 @@ const Inventory = () => {
     }
   });
 
-  // Log when data is loaded
+  // Log when data is loaded (development only)
   useEffect(() => {
     if (inventoryResponse && inventoryResponse.length > 0) {
-      console.log(`✓ Successfully loaded ${inventoryResponse.length} inventory items`);
+      devLog(`✓ Successfully loaded ${inventoryResponse.length} inventory items`);
     } else if (inventoryResponse && inventoryResponse.length === 0) {
-      console.warn('⚠ No inventory items found in database');
+      devLog('⚠ No inventory items found in database');
     }
   }, [inventoryResponse]);
 
@@ -487,7 +488,7 @@ const Inventory = () => {
       </div>
 
       {/* Debug Info - Remove in production */}
-      {process.env.NODE_ENV === 'development' && (
+      {import.meta.env.DEV && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs">
           <p className="text-blue-900">
             <span className="font-medium">Debug:</span> {inventoryItems.length} items loaded | API URL: {import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}

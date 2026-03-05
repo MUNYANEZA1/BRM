@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { usersAPI } from '../services/api';
 import { USER_ROLES } from '../utils/constants';
+import { devLog } from '../utils/logger';
 
 const Users = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -31,7 +32,7 @@ const Users = () => {
     queryFn: async () => {
       try {
         const response = await usersAPI.getUsers({ limit: 100 });
-        console.log('Users data fetched:', response.data.data.users);
+        devLog('Users data fetched:', response.data.data.users);
         return response.data.data.users || [];
       } catch (err) {
         console.error('Error fetching users:', err);
@@ -120,12 +121,12 @@ const Users = () => {
     });
   };
 
-  // Log when data is loaded
+  // Log when data is loaded (development only)
   useEffect(() => {
     if (users && users.length > 0) {
-      console.log(`✓ Successfully loaded ${users.length} users`);
+      devLog(`✓ Successfully loaded ${users.length} users`);
     } else if (users && users.length === 0) {
-      console.warn('⚠ No users found in database');
+      devLog('⚠ No users found in database');
     }
   }, [users]);
 
@@ -252,8 +253,9 @@ const Users = () => {
   });
 
   const toggleUserStatus = (userId) => {
-    // In real app, this would make an API call
-    console.log(`Toggling status for user ${userId}`);
+    devLog(`Toggling status for user ${userId}`);
+    // call backend mutation
+    toggleStatusMutation.mutate(userId);
   };
 
   // Calculate summary stats

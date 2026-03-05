@@ -3,7 +3,7 @@ import axios from 'axios';
 // Production-ready API base URL
 const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
-  'https://brm-backend-hak4.onrender.com/api';
+  'http://localhost:5000/api';
 
 // Create axios instance
 const api = axios.create({

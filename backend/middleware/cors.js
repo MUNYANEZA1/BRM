@@ -4,12 +4,18 @@ const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
-    // Allow all origins in development
-    if (process.env.NODE_ENV === 'development') {
+
+    // Fast‑pass if environment explicitly allows everything
+    if (process.env.ALLOW_ALL_ORIGINS === 'true') {
+      console.warn('⚠️ ALLOW_ALL_ORIGINS is set, skipping origin checks');
       return callback(null, true);
     }
     
+    // Allow all origins in development for convenience
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+
     // In production, allow configured frontend URL and common hosting domains (e.g. Vercel)
     const allowedOrigins = [
       'http://localhost:3000',
@@ -31,6 +37,8 @@ const corsOptions = {
       // fall through to deny
     }
 
+    // Log denied origin for debugging
+    console.warn(`🚫 CORS denied for origin: ${origin}`);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,

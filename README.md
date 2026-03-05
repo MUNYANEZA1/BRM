@@ -365,7 +365,7 @@ The system includes demo credentials for testing:
 - JWT-based authentication
 - Password hashing with bcrypt
 - Role-based access control
-- CORS protection
+- CORS protection (configured via backend/middleware/cors.js; set FRONTEND_URL or use ALLOW_ALL_ORIGINS=true for troubleshooting)
 - Rate limiting
 - Input validation
 - SQL injection prevention
@@ -428,6 +428,25 @@ The system includes demo credentials for testing:
 }
 ```
 
+## 🧪 Testing
+
+The backend now includes a minimal test suite using Jest and Supertest. To run:
+
+```bash
+cd backend
+npm install # ensure dev deps are installed (jest, supertest, eslint)
+npm test
+```
+
+A lint script is also available in both backend and frontend:
+
+```bash
+cd backend && npm run lint
+cd frontend && npm run lint
+```
+
+Add additional tests under `backend/tests/` as needed.
+
 ## 🚀 Deployment
 
 ### Production Build
@@ -443,7 +462,7 @@ The system includes demo credentials for testing:
    - Set `NODE_ENV=production`
    - Configure production MongoDB URI
    - Set secure JWT secret
-   - Configure CORS for production domains
+   - Configure CORS for production domains (`FRONTEND_URL` or `ALLOW_ALL_ORIGINS` env var)
 
 3. **Deploy Backend**
    - Use PM2 for process management
