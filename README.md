@@ -182,6 +182,85 @@ bar-restaurant-management-system/
 4. **Access the Application**
    Open your browser and navigate to `http://localhost:3000`
 
+---
+
+### 🖥️ Deployment & Production Configuration
+
+> ⚠️ **Having issues?** Experiencing 500 errors on login/registration on Render or Vercel?
+> 
+> This is likely due to missing environment variables. See [PROBLEM_AND_SOLUTION.md](./PROBLEM_AND_SOLUTION.md) for a quick explanation and [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md) for step-by-step deployment instructions.
+
+#### Quick Start Deployment
+
+**For fastest deployment (20-30 minutes):**
+1. Read: [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md) ✅
+2. Follow the checklist step by step
+3. Deploy backend to Render
+4. Deploy frontend to Vercel
+
+#### Detailed Documentation
+
+We've created comprehensive guides for different needs:
+
+- 📋 **[DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)** - Step-by-step checklist format (recommended for deployment)
+- 📖 **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** - Detailed guide with MongoDB, Render, and Vercel setup
+- 🔍 **[PROBLEM_AND_SOLUTION.md](./PROBLEM_AND_SOLUTION.md)** - Explanation of 500 error issues and fixes
+- 📋 **[FIXES_SUMMARY.md](./FIXES_SUMMARY.md)** - Summary of all code improvements made
+- 🗺️ **[DOCUMENTATION_INDEX.md](./DOCUMENTATION_INDEX.md)** - Index of all documentation
+
+#### Required Backend Environment Variables
+
+```text
+NODE_ENV=production
+PORT=5000
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/dbname
+# ^ Must start with mongodb:// or mongodb+srv://
+JWT_SECRET=your_super_secret_key_min_32_characters
+FRONTEND_URL=https://your-vercel-app.vercel.app
+```
+
+**Generating a secure JWT_SECRET:**
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+#### Backend Deployment (Render)
+
+1. Create Web Service on [render.com](https://render.com)
+2. Connect your GitHub repository
+3. Set environment variables (listed above)
+4. Deploy - backend will be available at `https://your-service-name.onrender.com`
+
+For detailed instructions, see [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)
+
+#### Frontend Deployment (Vercel)
+
+1. Import project on [vercel.com](https://vercel.com)
+2. Set root directory to `frontend`
+3. Add environment variable:
+   - `VITE_API_URL=https://your-render-backend-url.onrender.com/api`
+4. Deploy - frontend will be available at `https://your-project.vercel.app`
+
+#### Troubleshooting
+
+**500 errors on login/register?**
+1. Check your Render logs for error messages
+2. Verify `MONGODB_URI` is set and correct
+3. Verify `JWT_SECRET` is set (must be 32+ characters)
+4. Ensure `FRONTEND_URL` is set to your Vercel app URL
+
+See [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) troubleshooting section for more details.
+
+#### ✨ What We Fixed
+
+Recent improvements for production stability:
+- ✅ Environment variable validation on startup
+- ✅ Better error messages for debugging
+- ✅ CORS configuration for production
+- ✅ Secure JWT token generation
+- ✅ Input validation and error handling
+- ✅ MongoDB connection validation
+
 ## 👤 Default User Accounts
 
 The system includes demo credentials for testing:

@@ -6,9 +6,17 @@ const register = async (req, res) => {
   try {
     const { username, email, password, firstName, lastName, role, phone } = req.body;
 
+    // Validate required fields
+    if (!username || !email || !password || !firstName || !lastName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: username, email, password, firstName, lastName'
+      });
+    }
+
     // Check if user already exists
     const existingUser = await User.findOne({
-      $or: [{ email }, { username }]
+      $or: [{ email: email.toLowerCase() }, { username: username.toLowerCase() }]
     });
 
     if (existingUser) {
@@ -28,8 +36,8 @@ const register = async (req, res) => {
 
     // Create new user
     const user = new User({
-      username,
-      email,
+      username: username.toLowerCase(),
+      email: email.toLowerCase(),
       password,
       firstName,
       lastName,
@@ -54,7 +62,7 @@ const register = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error('Registration error:', error.message);
     
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map(err => err.message);
@@ -65,11 +73,17 @@ const register = async (req, res) => {
       });
     }
 
-    // always log and return the real error message for easier debugging
-    console.error('Registration internal error:', error);
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'User with this email or username already exists'
+      });
+    }
+
     res.status(500).json({
       success: false,
-      message: error.message || 'Server error during registration'
+      message: error.message || 'Server error during registration',
+      ...(process.env.NODE_ENV === 'development' && { error: error.stack })
     });
   }
 };
@@ -88,7 +102,10 @@ const login = async (req, res) => {
 
     // Find user by username or email
     const user = await User.findOne({
-      $or: [{ username }, { email: username }],
+      $or: [
+        { username: username.toLowerCase() },
+        { email: username.toLowerCase() }
+      ],
       isActive: true
     });
 
@@ -126,11 +143,11 @@ const login = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
-    console.error('Login internal error:', error);
+    console.error('Login error:', error.message);
     res.status(500).json({
       success: false,
-      message: error.message || 'Server error during login'
+      message: error.message || 'Server error during login',
+      ...(process.env.NODE_ENV === 'development' && { error: error.stack })
     });
   }
 };

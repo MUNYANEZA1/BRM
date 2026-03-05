@@ -8,6 +8,16 @@ require('dotenv').config();
 
 const app = express();
 
+// Validate required environment variables
+const requiredEnvVars = ['MONGODB_URI', 'JWT_SECRET', 'NODE_ENV'];
+const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+
+if (missingEnvVars.length > 0) {
+  console.error('❌ CRITICAL: Missing required environment variables:', missingEnvVars.join(', '));
+  console.error('Please set these variables in your deployment platform (Render/Vercel) or .env file');
+  process.exit(1);
+}
+
 // If running behind a proxy (Render, Heroku, Vercel serverless), trust proxy headers
 // so rate-limiting and IP detection work correctly.
 app.set('trust proxy', 1);
@@ -43,16 +53,23 @@ app.use((req, res, next) => {
 app.use(morgan('combined'));
 
 // MongoDB connection - validate URI scheme early to provide clearer errors
-if (!process.env.MONGODB_URI || (!process.env.MONGODB_URI.startsWith('mongodb://') && !process.env.MONGODB_URI.startsWith('mongodb+srv://'))) {
-  console.error('MongoDB connection error: Invalid or missing MONGODB_URI. It must start with "mongodb://" or "mongodb+srv://"');
-  console.error('Current MONGODB_URI:', process.env.MONGODB_URI);
+const mongoUri = process.env.MONGODB_URI;
+if (!mongoUri || (!mongoUri.startsWith('mongodb://') && !mongoUri.startsWith('mongodb+srv://'))) {
+  console.error('❌ CRITICAL: Invalid or missing MONGODB_URI');
+  console.error('   Expected format: mongodb://... or mongodb+srv://...');
+  console.error('   Current value:', mongoUri ? `${mongoUri.substring(0, 20)}...` : 'not set');
+  process.exit(1);
 } else {
-  mongoose.connect(process.env.MONGODB_URI, {
+  mongoose.connect(mongoUri, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
-  .then(() => console.log('MongoDB connected successfully'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+  .then(() => console.log('✅ MongoDB connected successfully'))
+  .catch((err) => {
+    console.error('❌ MongoDB connection error:', err.message);
+    console.error('   Check that your MONGODB_URI is correct and the database is accessible');
+    process.exit(1);
+  });
 }
 
 // Routes
