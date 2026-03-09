@@ -3,7 +3,7 @@ import { Plus, Minus, ShoppingCart, Search, Filter, LogOut } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
-import { menuAPI } from '../../services/api';
+import { menuAPI, API_BASE_URL } from '../../services/api';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const CustomerMenu = () => {
@@ -15,6 +15,11 @@ const CustomerMenu = () => {
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
   const [tableId, setTableId] = useState(null);
+  const [restaurantName, setRestaurantName] = useState('Restaurant');
+
+  // determine company id from query or authenticated user
+  const params = new URLSearchParams(location.search);
+  const companyId = params.get('company') || user?.company || null;
 
   // Extract table ID from query parameters
   useEffect(() => {
@@ -23,48 +28,42 @@ const CustomerMenu = () => {
     setTableId(table);
   }, [location]);
 
-  // Fetch categories from API
-  const { data: categoriesData = [] } = useQuery({
-    queryKey: ['categories'],
+  // Fetch customer menu (public) from API which returns categories with items
+  const { data: customerMenu = { menu: [], settings: null }, isLoading, isError } = useQuery({
+    queryKey: ['customerMenu', companyId],
     queryFn: async () => {
+      if (!companyId) return { menu: [], settings: null };
       try {
-        const response = await menuAPI.getCategories();
-        const data = response.data.data?.categories || [];
-        return [
-          { id: 'all', name: 'All Items', icon: '🍽️' },
-          ...data.map(cat => ({
-            id: cat._id,
-            name: cat.name,
-            icon: cat.icon || '🍽️'
-          }))
-        ];
+        const response = await menuAPI.getCustomerMenu({ company: companyId });
+        return response.data.data || { menu: [], settings: null };
       } catch (error) {
-        console.error('Error fetching categories:', error);
-        return [{ id: 'all', name: 'All Items', icon: '🍽️' }];
+        console.error('Error fetching customer menu:', error);
+        return { menu: [], settings: null };
       }
     },
-    staleTime: 60000,
-    refetchOnMount: 'stale',
-  });
-
-  // Fetch menu items from API
-  const { data: menuItems = [], isLoading, isError } = useQuery({
-    queryKey: ['menuItems'],
-    queryFn: async () => {
-      try {
-        const response = await menuAPI.getMenuItems({ limit: 100 });
-        return response.data.data?.menuItems || [];
-      } catch (error) {
-        console.error('Error fetching menu items:', error);
-        return [];
-      }
-    },
+    enabled: !!companyId,
     staleTime: 30000,
     refetchOnMount: 'stale',
     refetchOnWindowFocus: true,
   });
 
-  const categories = categoriesData;
+  // update restaurant name when settings available
+  useEffect(() => {
+    if (customerMenu.settings?.restaurantName) {
+      setRestaurantName(customerMenu.settings.restaurantName);
+    }
+  }, [customerMenu.settings]);
+
+  // if we don't know which company to load, show a message
+  if (!companyId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-red-600 font-medium">
+          No company specified in the URL. Please include ?company=&lt;companyId&gt; to view menu.
+        </p>
+      </div>
+    );
+  }
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-RW', {
@@ -137,9 +136,9 @@ const CustomerMenu = () => {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
               <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">R</span>
+                <span className="text-white font-bold text-sm">{restaurantName.charAt(0).toUpperCase()}</span>
               </div>
-              <span className="ml-2 text-lg font-semibold text-gray-900">The Golden Fork</span>
+              <span className="ml-2 text-lg font-semibold text-gray-900">{restaurantName}</span>
               {tableId && (
                 <span className="ml-4 px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
                   📍 Table ID: {tableId.substring(0, 8)}...
@@ -261,7 +260,7 @@ const CustomerMenu = () => {
                     <div key={itemId} className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                       <div className="relative">
                         <img
-                          src={item.image || '/api/placeholder/300/200'}
+                          src={item.image || `${API_BASE_URL}/placeholder/300/200`}
                           alt={item.name}
                           className="w-full h-48 object-cover"
                         />

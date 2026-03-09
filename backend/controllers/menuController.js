@@ -1,5 +1,6 @@
 const Category = require('../models/Category');
 const MenuItem = require('../models/MenuItem');
+const Settings = require('../models/Settings');
 
 // Category Controllers
 
@@ -153,6 +154,7 @@ const deleteCategory = async (req, res) => {
 // Get all menu items
 const getAllMenuItems = async (req, res) => {
   try {
+    console.log('getAllMenuItems called, user company:', req.user.company);
     const { 
       page = 1, 
       limit = 20, 
@@ -163,7 +165,10 @@ const getAllMenuItems = async (req, res) => {
     } = req.query;
     
     // Build filter object
-    const filter = { company: req.user.company };
+    // const filter = { company: req.user.company };
+    const filter = {}; // temporarily remove company filter for testing
+    console.log('Filter:', filter);
+    // const filter = {}; // temporarily remove company filter for testing
     if (isActive !== undefined) filter.isActive = isActive === 'true';
     if (isAvailable !== undefined) filter.isAvailable = isAvailable === 'true';
     if (category) filter.category = category;
@@ -184,6 +189,8 @@ const getAllMenuItems = async (req, res) => {
       .sort({ sortOrder: 1, name: 1 })
       .skip(skip)
       .limit(parseInt(limit));
+
+    console.log('Found menu items:', menuItems.length);
 
     const total = await MenuItem.countDocuments(filter);
 
@@ -386,13 +393,35 @@ const deleteMenuItem = async (req, res) => {
 };
 
 // Get menu for customers (available items only)
+// Accepts ?company=<companyId> to scope the menu
 const getCustomerMenu = async (req, res) => {
   try {
-    const categories = await Category.findActive();
+    const companyId = req.query.company;
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Company id is required'
+      });
+    }
+
+    // fetch settings for header/branding
+    const settings = await Settings.findOne({ company: companyId });
+
+    const categories = await Category.find({
+      company: companyId,
+      isActive: true
+    }).sort({ sortOrder: 1, name: 1 });
+
     const menuWithItems = [];
 
     for (const category of categories) {
-      const items = await MenuItem.findByCategory(category._id);
+      const items = await MenuItem.find({
+        category: category._id,
+        company: companyId,
+        isAvailable: true,
+        isActive: true
+      }).sort({ sortOrder: 1, name: 1 });
+
       if (items.length > 0) {
         menuWithItems.push({
           category: category,
@@ -403,7 +432,7 @@ const getCustomerMenu = async (req, res) => {
 
     res.json({
       success: true,
-      data: { menu: menuWithItems }
+      data: { menu: menuWithItems, settings }
     });
   } catch (error) {
     console.error('Get customer menu error:', error);

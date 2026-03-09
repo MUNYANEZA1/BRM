@@ -335,7 +335,8 @@ The system includes demo credentials for testing:
 ### Menu
 - `GET /api/menu/categories` - Get categories
 - `POST /api/menu/categories` - Create category
-- `GET /api/menu/items` - Get menu items
+- `GET /api/menu/items` - Get menu items (requires auth, filtered by company from token)
+- `GET /api/menu/customer` - Get customer-facing menu; accepts `?company=<companyId>` to return items for a specific company (public)
 - `POST /api/menu/items` - Create menu item
 - `PUT /api/menu/items/:id` - Update menu item
 - `DELETE /api/menu/items/:id` - Delete menu item

@@ -74,11 +74,11 @@ function AppRoutes() {
   return (
     <Router>
       <Routes>
-        {/* Root route - check for table parameter */}
+        {/* Root route - customer menu */}
         <Route path="/" element={<CustomerMenu />} />
         
         {/* Public routes */}
-        <Route path="/menu" element={<CustomerMenu />} />
+        <Route path="/customer-menu" element={<CustomerMenu />} />
         
         {/* Auth routes */}
         <Route
@@ -119,6 +119,16 @@ function AppRoutes() {
             <ProtectedRoute>
               <DashboardLayout>
                 <Orders />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/menu"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <Menu />
               </DashboardLayout>
             </ProtectedRoute>
           }

@@ -19,6 +19,7 @@ const corsOptions = {
     // In production, allow configured frontend URL and common hosting domains (e.g. Vercel)
     const allowedOrigins = [
       'http://localhost:3000',
+      'http://localhost:3001',
       'http://localhost:5173',
       process.env.FRONTEND_URL,
     ].filter(Boolean);

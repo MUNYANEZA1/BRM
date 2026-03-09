@@ -1,92 +1,168 @@
-import React, { useState } from 'react';
-import { Plus, Search, Edit, Trash2, X } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { Plus, Search, Edit, Trash2, X, FolderPlus, AlertCircle, CheckCircle, ClipboardCopy, Menu as MenuIcon, PanelLeftClose } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { inventoryAPI } from '../services/api';
-import { devLog } from '../utils/logger';
+import { menuAPI, uploadAPI } from '../services/api';
+import LoadingSpinner from '../components/common/LoadingSpinner';
 
 const Menu = () => {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isEditCategoryModalOpen, setIsEditCategoryModalOpen] = useState(false);
+  const [isDeleteCategoryModalOpen, setIsDeleteCategoryModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [selectedCategoryForDelete, setSelectedCategoryForDelete] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   
-  const [formData, setFormData] = useState({
+  const [itemFormData, setItemFormData] = useState({
     name: '',
     description: '',
-    sku: '',
-    category: 'food',
-    unit: 'kg',
-    currentStock: 0,
-    minimumStock: 10,
-    maximumStock: 50,
-    unitCost: 0,
-    supplier: {
-      name: '',
-      contact: '',
-      email: ''
-    },
-    expiryDate: '',
-    location: ''
+    price: 0,
+    cost: 0,
+    category: '',
+    preparationTime: 15,
+    isAvailable: true,
+    tags: []
+  });
+
+  const [categoryFormData, setCategoryFormData] = useState({
+    name: '',
+    description: '',
+    sortOrder: 0
   });
 
   const queryClient = useQueryClient();
 
-  // Fetch inventory items
-  const { data: inventoryResponse, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['inventoryItems'],
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // prepare customer menu URL / QR based on company
+  const companyId = user?.company;
+  const customerMenuUrl = companyId
+    ? `${window.location.origin}/customer-menu?company=${companyId}`
+    : '';
+  const qrCodeSrc = customerMenuUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(customerMenuUrl)}&size=120x120`
+    : '';
+
+  const handleCopyUrl = () => {
+    if (customerMenuUrl) {
+      navigator.clipboard.writeText(customerMenuUrl);
+      toast.success('Customer menu URL copied');
+    }
+  };
+
+  // Fetch categories
+  const { data: categoriesResponse, isLoading: categoriesLoading } = useQuery({
+    queryKey: ['categories'],
     queryFn: async () => {
       try {
-        const response = await inventoryAPI.getInventoryItems({ limit: 100 });
-        devLog('Menu items fetched from inventory:', response.data.data.inventoryItems);
-        return response.data.data.inventoryItems || [];
+        const response = await menuAPI.getCategories();
+        return response.data.data.categories || [];
       } catch (err) {
-        console.error('Error fetching inventory:', err);
+        console.error('Error fetching categories:', err);
         throw err;
       }
     },
     retry: 3,
   });
 
-  const menuItems = Array.isArray(inventoryResponse) ? inventoryResponse : [];
+  const categories = Array.isArray(categoriesResponse) ? categoriesResponse : [];
 
-  // Create item mutation
+  // Fetch menu items
+  const { data: menuItemsResponse, isLoading: itemsLoading } = useQuery({
+    queryKey: ['menuItems'],
+    queryFn: async () => {
+      try {
+        console.log('Fetching menu items...');
+        const response = await menuAPI.getMenuItems({ limit: 100 });
+        console.log('Menu items response:', response.data);
+        return response.data.data.menuItems || [];
+      } catch (err) {
+        console.error('Error fetching menu items:', err);
+        throw err;
+      }
+    },
+    retry: 3,
+  });
+
+  const menuItems = Array.isArray(menuItemsResponse) ? menuItemsResponse : [];
+  
+  // Filter items by search and category
+  const filteredItems = menuItems.filter(item => {
+    const matchesSearch = item.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                         (item.description && item.description.toLowerCase().includes(debouncedSearchTerm.toLowerCase()));
+    const matchesCategory = !selectedCategory || item.category._id === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  // Menu Item Mutations
   const createItemMutation = useMutation({
-    mutationFn: (data) => inventoryAPI.createInventoryItem(data),
+    mutationFn: async (data) => {
+      let uploadedImageUrl = null;
+      if (imageFile) {
+        const uploadResponse = await uploadAPI.uploadImage(imageFile);
+        uploadedImageUrl = uploadResponse.data.data.imageUrl;
+      }
+      return menuAPI.createMenuItem({
+        ...data,
+        image: uploadedImageUrl || undefined
+      });
+    },
     onSuccess: () => {
       toast.success('Menu item created successfully');
-      queryClient.invalidateQueries({ queryKey: ['inventoryItems'] });
-      setIsModalOpen(false);
-      resetFormData();
+      queryClient.invalidateQueries({ queryKey: ['menuItems'] });
+      setIsItemModalOpen(false);
+      resetItemFormData();
     },
     onError: (error) => {
       toast.error(error.response?.data?.message || 'Failed to create item');
     }
   });
 
-  // Update item mutation
   const updateItemMutation = useMutation({
-    mutationFn: ({ itemId, data }) => inventoryAPI.updateInventoryItem(itemId, data),
+    mutationFn: async (data) => {
+      let uploadedImageUrl = itemFormData.image;
+      if (imageFile) {
+        const uploadResponse = await uploadAPI.uploadImage(imageFile);
+        uploadedImageUrl = uploadResponse.data.data.imageUrl;
+      }
+      return menuAPI.updateMenuItem(selectedItem._id, {
+        ...data,
+        image: uploadedImageUrl
+      });
+    },
     onSuccess: () => {
       toast.success('Menu item updated successfully');
-      queryClient.invalidateQueries({ queryKey: ['inventoryItems'] });
+      queryClient.invalidateQueries({ queryKey: ['menuItems'] });
       setIsEditModalOpen(false);
       setSelectedItem(null);
-      resetFormData();
+      resetItemFormData();
     },
     onError: (error) => {
       toast.error(error.response?.data?.message || 'Failed to update item');
     }
   });
 
-  // Delete item mutation
   const deleteItemMutation = useMutation({
-    mutationFn: (itemId) => inventoryAPI.deleteInventoryItem(itemId),
+    mutationFn: (itemId) => menuAPI.deleteMenuItem(itemId),
     onSuccess: () => {
       toast.success('Menu item deleted successfully');
-      queryClient.invalidateQueries({ queryKey: ['inventoryItems'] });
+      queryClient.invalidateQueries({ queryKey: ['menuItems'] });
       setIsDeleteModalOpen(false);
       setSelectedItem(null);
     },
@@ -95,22 +171,66 @@ const Menu = () => {
     }
   });
 
+  // Category Mutations
+  const createCategoryMutation = useMutation({
+    mutationFn: (data) => menuAPI.createCategory(data),
+    onSuccess: () => {
+      toast.success('Category created successfully');
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      setIsCategoryModalOpen(false);
+      resetCategoryFormData();
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to create category');
+    }
+  });
+
+  const updateCategoryMutation = useMutation({
+    mutationFn: (data) => menuAPI.updateCategory(selectedCategoryForDelete._id, data),
+    onSuccess: () => {
+      toast.success('Category updated successfully');
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      setIsEditCategoryModalOpen(false);
+      setSelectedCategoryForDelete(null);
+      resetCategoryFormData();
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to update category');
+    }
+  });
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: (categoryId) => menuAPI.deleteCategory(categoryId),
+    onSuccess: () => {
+      toast.success('Category deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      setIsDeleteCategoryModalOpen(false);
+      setSelectedCategoryForDelete(null);
+      if (selectedCategory === selectedCategoryForDelete._id) {
+        setSelectedCategory(null);
+      }
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to delete category');
+    }
+  });
+
   const handleEditItem = (item) => {
     setSelectedItem(item);
-    setFormData({
+    setItemFormData({
       name: item.name,
       description: item.description || '',
-      sku: item.sku || '',
-      category: item.category,
-      unit: item.unit,
-      currentStock: item.currentStock,
-      minimumStock: item.minimumStock,
-      maximumStock: item.maximumStock || 50,
-      unitCost: item.unitCost,
-      supplier: item.supplier || { name: '', contact: '', email: '' },
-      expiryDate: item.expiryDate ? new Date(item.expiryDate).toISOString().split('T')[0] : '',
-      location: item.location || ''
+      price: item.price,
+      cost: item.cost || 0,
+      category: item.category._id,
+      preparationTime: item.preparationTime || 15,
+      isAvailable: item.isAvailable,
+      tags: item.tags || [],
+      image: item.image || ''
     });
+    if (item.image) {
+      setImagePreview(item.image);
+    }
     setIsEditModalOpen(true);
   };
 
@@ -119,78 +239,111 @@ const Menu = () => {
     setIsDeleteModalOpen(true);
   };
 
-  const resetFormData = () => {
-    setFormData({
+  const handleEditCategory = (category) => {
+    setSelectedCategoryForDelete(category);
+    setCategoryFormData({
+      name: category.name,
+      description: category.description || '',
+      sortOrder: category.sortOrder || 0
+    });
+    setIsEditCategoryModalOpen(true);
+  };
+
+  const handleDeleteCategory = (category) => {
+    setSelectedCategoryForDelete(category);
+    setIsDeleteCategoryModalOpen(true);
+  };
+
+  const resetItemFormData = () => {
+    setItemFormData({
       name: '',
       description: '',
-      sku: '',
-      category: 'food',
-      unit: 'kg',
-      currentStock: 0,
-      minimumStock: 10,
-      maximumStock: 50,
-      unitCost: 0,
-      supplier: {
-        name: '',
-        contact: '',
-        email: ''
-      },
-      expiryDate: '',
-      location: ''
+      price: 0,
+      cost: 0,
+      category: '',
+      preparationTime: 15,
+      isAvailable: true,
+      tags: []
+    });
+    setImageFile(null);
+    setImagePreview(null);
+  };
+
+  const resetCategoryFormData = () => {
+    setCategoryFormData({
+      name: '',
+      description: '',
+      sortOrder: 0
     });
   };
 
-  const handleInputChange = (e) => {
+  const handleItemInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setItemFormData({
+      ...itemFormData,
+      [name]: type === 'checkbox' ? checked : (
+        ['price', 'cost', 'preparationTime'].includes(name) ? parseFloat(value) || 0 : value
+      )
+    });
+  };
+
+  const handleCategoryInputChange = (e) => {
     const { name, value } = e.target;
-    if (name.includes('.')) {
-      const [parent, child] = name.split('.');
-      setFormData({
-        ...formData,
-        [parent]: {
-          ...formData[parent],
-          [child]: value
-        }
-      });
-    } else {
-      setFormData({
-        ...formData,
-        [name]: ['currentStock', 'minimumStock', 'maximumStock', 'unitCost'].includes(name)
-          ? parseFloat(value) || 0
-          : value
-      });
+    setCategoryFormData({
+      ...categoryFormData,
+      [name]: name === 'sortOrder' ? parseInt(value) || 0 : value
+    });
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmitItem = (e) => {
     e.preventDefault();
     
-    if (!formData.name.trim()) {
+    if (!itemFormData.name.trim()) {
       toast.error('Item name is required');
       return;
     }
-    if (!formData.sku.trim()) {
-      toast.error('SKU is required');
+    if (!itemFormData.category) {
+      toast.error('Category is required');
       return;
     }
-    if (formData.unitCost <= 0) {
-      toast.error('Unit cost must be greater than 0');
+    if (itemFormData.price <= 0) {
+      toast.error('Price must be greater than 0');
       return;
     }
 
     if (selectedItem) {
-      updateItemMutation.mutate({ itemId: selectedItem._id, data: formData });
+      updateItemMutation.mutate(itemFormData);
     } else {
-      createItemMutation.mutate(formData);
+      createItemMutation.mutate(itemFormData);
     }
   };
 
-  const filteredItems = menuItems.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (item.sku && item.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                         (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter;
-    return matchesSearch && matchesCategory;
-  });
+  const handleSubmitCategory = (e) => {
+    e.preventDefault();
+    
+    if (!categoryFormData.name.trim()) {
+      toast.error('Category name is required');
+      return;
+    }
+
+    if (selectedCategoryForDelete && isEditCategoryModalOpen) {
+      updateCategoryMutation.mutate(categoryFormData);
+    } else {
+      createCategoryMutation.mutate(categoryFormData);
+    }
+  };
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-RW', {
@@ -201,173 +354,282 @@ const Menu = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Menu</h1>
-          <p className="text-gray-600">Manage menu items from your inventory</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={() => refetch()}
-            disabled={isLoading}
-            className="btn-outline flex items-center cursor-pointer"
-            title="Refresh menu data"
-          >
-            <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Refresh
-          </button>
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="btn-primary flex items-center cursor-pointer"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Item
-          </button>
-        </div>
-      </div>
-
-      {/* Loading State */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-            <p className="mt-4 text-gray-600">Loading menu items...</p>
-          </div>
-        </div>
+    <div className="flex h-full gap-6 relative">
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
-
-      {/* Error State */}
-      {isError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">
-            <span className="font-medium">Error loading menu:</span> {error?.message || 'Failed to fetch menu items'}
-          </p>
-          <button 
-            onClick={() => refetch()}
-            className="mt-2 text-red-600 hover:text-red-800 font-medium text-sm"
-          >
-            Try Again
-          </button>
-        </div>
-      )}
-
-      {/* Content */}
-      {!isLoading && !isError && (
-        <div className="space-y-4">
-          {/* Search and Filter */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by name, SKU..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="input pl-10 w-full"
-              />
-            </div>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="input w-full sm:w-40"
-            >
-              <option value="all">All Categories</option>
-              <option value="food">Food</option>
-              <option value="beverage">Beverage</option>
-              <option value="alcohol">Alcohol</option>
-              <option value="supplies">Supplies</option>
-              <option value="cleaning">Cleaning</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-
-          {/* Items Table */}
+      
+      {/* Left Sidebar - Categories */}
+      <div className={`w-64 flex-shrink-0 transition-all duration-300 ease-in-out z-50 ${sidebarOpen ? 'block fixed inset-y-0 left-0 md:relative md:inset-auto' : 'hidden md:block'}`}>
+        <div className="sticky top-0">
           <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Cost</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredItems.map((item) => (
-                  <tr key={item._id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{item.name}</div>
-                      <div className="text-sm text-gray-500">{item.description}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.sku}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">{item.category}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        item.currentStock <= 0 ? 'bg-red-100 text-red-800' :
-                        item.currentStock <= item.minimumStock ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-green-100 text-green-800'
-                      }`}>
-                        {item.currentStock} {item.unit}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {formatCurrency(item.unitCost)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end space-x-2">
-                        <button 
-                          onClick={() => handleEditItem(item)}
-                          className="text-gray-600 hover:text-gray-900 transition-colors cursor-pointer"
-                          title="Edit Item"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteItem(item)}
-                          className="text-red-600 hover:text-red-900 transition-colors cursor-pointer"
-                          title="Delete Item"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {/* Categories Header */}
+            <div className="bg-gradient-to-r from-primary-600 to-primary-700 px-4 py-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-white font-bold text-lg">Categories</h3>
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="md:hidden p-1 rounded text-white hover:bg-white hover:bg-opacity-20 transition-colors"
+                  title="Close Categories"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedCategoryForDelete(null);
+                  resetCategoryFormData();
+                  setIsCategoryModalOpen(true);
+                }}
+                className="w-full btn-white text-primary-600 hover:bg-primary-50 flex items-center justify-center gap-2 py-2 text-sm"
+              >
+                <FolderPlus className="h-4 w-4" />
+                New Category
+              </button>
+            </div>
 
-            {filteredItems.length === 0 && (
-              <div className="text-center py-12">
-                <div className="text-gray-500">
-                  <p className="text-lg font-medium">No menu items found</p>
-                  <p className="text-sm">Try adjusting your search or filters</p>
-                </div>
+            {/* Categories List */}
+            {categoriesLoading ? (
+              <div className="p-4 text-center text-gray-500">
+                <LoadingSpinner size="sm" />
+              </div>
+            ) : (
+              <div className="divide-y max-h-96 overflow-y-auto">
+                {/* All Items Option */}
+                <button
+                  onClick={() => setSelectedCategory(null)}
+                  className={`w-full text-left px-4 py-3 transition-colors ${
+                    selectedCategory === null 
+                      ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-600'
+                      : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="font-medium">All Items</div>
+                  <div className="text-xs text-gray-500">
+                    {menuItems.length} items
+                  </div>
+                </button>
+
+                {/* Category Items */}
+                {categories.map((category) => (
+                  <div
+                    key={category._id}
+                    className={`user-select-none px-4 py-3 transition-colors cursor-pointer group hover:bg-gray-50 ${
+                      selectedCategory === category._id 
+                        ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-600'
+                        : ''
+                    }`}
+                  >
+                    <button
+                      onClick={() => setSelectedCategory(category._id)}
+                      className="w-full text-left"
+                    >
+                      <div className="font-medium">{category.name}</div>
+                      <div className="text-xs text-gray-500">
+                        {menuItems.filter(item => item.category._id === category._id).length} items
+                      </div>
+                    </button>
+                    
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 mt-2">
+                      <button
+                        onClick={() => handleEditCategory(category)}
+                        className="flex-1 text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
+                      >
+                        <Edit className="h-3 w-3 inline mr-1" />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCategory(category)}
+                        className="flex-1 text-xs bg-red-100 text-red-700 hover:bg-red-200 px-2 py-1 rounded transition-colors"
+                      >
+                        <Trash2 className="h-3 w-3 inline mr-1" />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {categories.length === 0 && (
+                  <div className="p-4 text-center text-sm text-gray-500">
+                    No categories yet
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="md:hidden p-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 transition-colors"
+              title={sidebarOpen ? 'Hide Categories' : 'Show Categories'}
+            >
+              {sidebarOpen ? <PanelLeftClose className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
+            </button>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Menu Management</h1>
+              <p className="text-gray-600">
+                {selectedCategory 
+                  ? `${categories.find(c => c._id === selectedCategory)?.name}`
+                  : 'All Menu Items'
+                } ({filteredItems.length} items)
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            {customerMenuUrl && (
+              <div className="flex items-center space-x-2">
+                <img src={qrCodeSrc} alt="QR code" className="h-12 w-12" />
+                <div className="flex items-center space-x-1">
+                  <a
+                    href={customerMenuUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary-600 underline truncate max-w-xs"
+                    title={customerMenuUrl}
+                  >
+                    Customer menu link
+                  </a>
+                  <button onClick={handleCopyUrl} className="p-1">
+                    <ClipboardCopy className="h-4 w-4 text-gray-500 hover:text-gray-700" />
+                  </button>
+                </div>
+              </div>
+            )}
+            <button
+              onClick={() => {
+                setSelectedItem(null);
+                resetItemFormData();
+                setIsItemModalOpen(true);
+              }}
+              className="btn-primary flex items-center gap-2"
+            >
+              <Plus className="h-5 w-5" />
+              Add Menu Item
+            </button>
+          </div>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search menu items..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="input pl-10 w-full"
+          />
+        </div>
+
+        {/* Menu Items */}
+        {itemsLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <LoadingSpinner />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+            {filteredItems.map((item) => (
+              <div key={item._id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-200 overflow-hidden transform hover:scale-[1.02]">
+                {/* Item Image */}
+                {item.image && (
+                  <div className="h-40 bg-gray-200 overflow-hidden">
+                    <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                  </div>
+                )}
+
+                {/* Item Details */}
+                <div className="p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <h3 className="font-bold text-lg text-gray-900">{item.name}</h3>
+                      <p className="text-xs text-gray-500">{item.category.name}</p>
+                    </div>
+                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${
+                      item.isAvailable 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {item.isAvailable ? 'Available' : 'Unavailable'}
+                    </span>
+                  </div>
+
+                  {item.description && (
+                    <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.description}</p>
+                  )}
+
+                  <div className="space-y-2 mb-4">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Price:</span>
+                      <span className="font-bold text-primary-600">{formatCurrency(item.price)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Cost:</span>
+                      <span className="text-gray-900">{formatCurrency(item.cost)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Prep Time:</span>
+                      <span className="text-gray-900">{item.preparationTime} min</span>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleEditItem(item)}
+                      className="flex-1 btn-outline flex items-center justify-center gap-2 py-2"
+                    >
+                      <Edit className="h-4 w-4" />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteItem(item)}
+                      className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 px-3 py-2 rounded transition-colors flex items-center justify-center gap-2 font-medium"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {filteredItems.length === 0 && (
+              <div className="col-span-full text-center py-12">
+                <div className="text-gray-500">
+                  <p className="text-lg font-medium">No menu items found</p>
+                  <p className="text-sm">Try adjusting your search or create a new item</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Add/Edit Item Modal */}
-      {(isModalOpen || isEditModalOpen) && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+      {(isItemModalOpen || isEditModalOpen) && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl my-8">
+            <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 bg-white">
               <h2 className="text-xl font-bold text-gray-900">
                 {isEditModalOpen ? `Edit: ${selectedItem.name}` : 'Add Menu Item'}
               </h2>
-              <button 
+              <button
                 onClick={() => {
-                  setIsModalOpen(false);
+                  setIsItemModalOpen(false);
                   setIsEditModalOpen(false);
                   setSelectedItem(null);
-                  resetFormData();
+                  resetItemFormData();
                 }}
                 className="text-gray-500 hover:text-gray-700"
               >
@@ -375,225 +637,163 @@ const Menu = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <form onSubmit={handleSubmitItem} className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Name */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Item Name *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Menu Item Name *
+                  </label>
                   <input
                     type="text"
                     name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
+                    value={itemFormData.name}
+                    onChange={handleItemInputChange}
                     className="input w-full"
-                    placeholder="e.g., Chicken Breast"
+                    placeholder="e.g., Grilled Fish"
                     required
                   />
                 </div>
+
+                {/* Category */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">SKU *</label>
-                  <input
-                    type="text"
-                    name="sku"
-                    value={formData.sku}
-                    onChange={handleInputChange}
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Category *
+                  </label>
+                  <select
+                    name="category"
+                    value={itemFormData.category}
+                    onChange={handleItemInputChange}
                     className="input w-full"
-                    placeholder="e.g., CHI001"
+                    required
+                  >
+                    <option value="">Select a category</option>
+                    {categories.map((cat) => (
+                      <option key={cat._id} value={cat._id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Price */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Selling Price (RWF) *
+                  </label>
+                  <input
+                    type="number"
+                    name="price"
+                    value={itemFormData.price}
+                    onChange={handleItemInputChange}
+                    className="input w-full"
+                    placeholder="0"
+                    step="100"
+                    min="0"
                     required
                   />
+                </div>
+
+                {/* Cost */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Cost Price (RWF)
+                  </label>
+                  <input
+                    type="number"
+                    name="cost"
+                    value={itemFormData.cost}
+                    onChange={handleItemInputChange}
+                    className="input w-full"
+                    placeholder="0"
+                    step="100"
+                    min="0"
+                  />
+                </div>
+
+                {/* Preparation Time */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Preparation Time (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    name="preparationTime"
+                    value={itemFormData.preparationTime}
+                    onChange={handleItemInputChange}
+                    className="input w-full"
+                    placeholder="15"
+                    min="1"
+                  />
+                </div>
+
+                {/* Available */}
+                <div className="flex items-end pb-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="isAvailable"
+                      checked={itemFormData.isAvailable}
+                      onChange={handleItemInputChange}
+                      className="w-4 h-4 rounded border-gray-300"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Available for Order</span>
+                  </label>
                 </div>
               </div>
 
+              {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description
+                </label>
                 <textarea
                   name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  className="input w-full"
-                  placeholder="Item description"
-                  rows="2"
+                  value={itemFormData.description}
+                  onChange={handleItemInputChange}
+                  className="input w-full h-24"
+                  placeholder="Enter item description..."
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
-                  <select
-                    name="category"
-                    value={formData.category}
-                    onChange={handleInputChange}
-                    className="input w-full"
-                    required
-                  >
-                    <option value="food">Food</option>
-                    <option value="beverage">Beverage</option>
-                    <option value="alcohol">Alcohol</option>
-                    <option value="supplies">Supplies</option>
-                    <option value="cleaning">Cleaning</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit *</label>
-                  <select
-                    name="unit"
-                    value={formData.unit}
-                    onChange={handleInputChange}
-                    className="input w-full"
-                    required
-                  >
-                    <option value="kg">Kilogram (kg)</option>
-                    <option value="g">Gram (g)</option>
-                    <option value="l">Liter (l)</option>
-                    <option value="ml">Milliliter (ml)</option>
-                    <option value="pieces">Pieces</option>
-                    <option value="bottles">Bottles</option>
-                    <option value="cans">Cans</option>
-                    <option value="boxes">Boxes</option>
-                    <option value="packets">Packets</option>
-                  </select>
-                </div>
+              {/* Image */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Item Image
+                </label>
+                {imagePreview && (
+                  <div className="mb-4">
+                    <img src={imagePreview} alt="Preview" className="h-32 w-32 object-cover rounded" />
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="input w-full"
+                />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Current Stock *</label>
-                  <input
-                    type="number"
-                    name="currentStock"
-                    value={formData.currentStock}
-                    onChange={handleInputChange}
-                    className="input w-full"
-                    placeholder="0"
-                    required
-                    min="0"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Stock</label>
-                  <input
-                    type="number"
-                    name="minimumStock"
-                    value={formData.minimumStock}
-                    onChange={handleInputChange}
-                    className="input w-full"
-                    placeholder="10"
-                    min="0"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Maximum Stock</label>
-                  <input
-                    type="number"
-                    name="maximumStock"
-                    value={formData.maximumStock}
-                    onChange={handleInputChange}
-                    className="input w-full"
-                    placeholder="50"
-                    min="0"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit Cost (RWF) *</label>
-                  <input
-                    type="number"
-                    name="unitCost"
-                    value={formData.unitCost}
-                    onChange={handleInputChange}
-                    className="input w-full"
-                    placeholder="0"
-                    required
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
-                  <input
-                    type="date"
-                    name="expiryDate"
-                    value={formData.expiryDate}
-                    onChange={handleInputChange}
-                    className="input w-full"
-                  />
-                </div>
-              </div>
-
-              <div className="border-t border-gray-200 pt-4">
-                <h3 className="text-sm font-medium text-gray-900 mb-3">Supplier Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Supplier Name</label>
-                    <input
-                      type="text"
-                      name="supplier.name"
-                      value={formData.supplier.name}
-                      onChange={handleInputChange}
-                      className="input w-full"
-                      placeholder="Supplier name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Contact</label>
-                    <input
-                      type="tel"
-                      name="supplier.contact"
-                      value={formData.supplier.contact}
-                      onChange={handleInputChange}
-                      className="input w-full"
-                      placeholder="+250 123 456 789"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                    <input
-                      type="email"
-                      name="supplier.email"
-                      value={formData.supplier.email}
-                      onChange={handleInputChange}
-                      className="input w-full"
-                      placeholder="supplier@example.com"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Storage Location</label>
-                    <input
-                      type="text"
-                      name="location"
-                      value={formData.location}
-                      onChange={handleInputChange}
-                      className="input w-full"
-                      placeholder="e.g., Freezer A"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-t border-gray-200 pt-4 flex justify-end space-x-3">
+              {/* Submit Buttons */}
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  disabled={createItemMutation.isPending || updateItemMutation.isPending}
+                  className="btn-primary flex-1"
+                >
+                  {createItemMutation.isPending || updateItemMutation.isPending ? 'Saving...' : 'Save Item'}
+                </button>
                 <button
                   type="button"
                   onClick={() => {
-                    setIsModalOpen(false);
+                    setIsItemModalOpen(false);
                     setIsEditModalOpen(false);
                     setSelectedItem(null);
-                    resetFormData();
+                    resetItemFormData();
                   }}
-                  className="btn-outline cursor-pointer"
-                  disabled={createItemMutation.isPending || updateItemMutation.isPending}
+                  className="btn-outline flex-1"
                 >
                   Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary cursor-pointer"
-                  disabled={createItemMutation.isPending || updateItemMutation.isPending}
-                >
-                  {isEditModalOpen ? 'Update Item' : 'Create Item'}
                 </button>
               </div>
             </form>
@@ -601,32 +801,180 @@ const Menu = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Item Modal */}
       {isDeleteModalOpen && selectedItem && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-sm">
             <div className="p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Delete Item?</h2>
-              <p className="text-gray-600 mb-6">
-                Are you sure you want to delete <strong>{selectedItem.name}</strong>? This action cannot be undone.
+              <div className="flex items-center gap-4 mb-4">
+                <div className="bg-red-100 rounded-full p-3">
+                  <AlertCircle className="h-6 w-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Delete Menu Item?</h3>
+                  <p className="text-sm text-gray-600">This action cannot be undone</p>
+                </div>
+              </div>
+
+              <p className="text-gray-700 mb-6">
+                Are you sure you want to delete <strong>{selectedItem.name}</strong>?
               </p>
-              <div className="flex justify-end space-x-3">
+
+              <div className="flex gap-3">
                 <button
                   onClick={() => {
                     setIsDeleteModalOpen(false);
                     setSelectedItem(null);
                   }}
-                  className="btn-outline cursor-pointer"
-                  disabled={deleteItemMutation.isPending}
+                  className="btn-outline flex-1"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => deleteItemMutation.mutate(selectedItem._id)}
-                  className="btn-danger cursor-pointer"
                   disabled={deleteItemMutation.isPending}
+                  className="btn-danger flex-1"
                 >
-                  {deleteItemMutation.isPending ? 'Deleting...' : 'Delete Item'}
+                  {deleteItemMutation.isPending ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Category Modal */}
+      {(isCategoryModalOpen || isEditCategoryModalOpen) && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm">
+            <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">
+                {isEditCategoryModalOpen ? 'Edit Category' : 'New Category'}
+              </h2>
+              <button
+                onClick={() => {
+                  setIsCategoryModalOpen(false);
+                  setIsEditCategoryModalOpen(false);
+                  setSelectedCategoryForDelete(null);
+                  resetCategoryFormData();
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitCategory} className="p-6 space-y-4">
+              {/* Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Category Name *
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={categoryFormData.name}
+                  onChange={handleCategoryInputChange}
+                  className="input w-full"
+                  placeholder="e.g., Appetizers"
+                  required
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description
+                </label>
+                <textarea
+                  name="description"
+                  value={categoryFormData.description}
+                  onChange={handleCategoryInputChange}
+                  className="input w-full h-20"
+                  placeholder="Enter category description..."
+                />
+              </div>
+
+              {/* Sort Order */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Display Order
+                </label>
+                <input
+                  type="number"
+                  name="sortOrder"
+                  value={categoryFormData.sortOrder}
+                  onChange={handleCategoryInputChange}
+                  className="input w-full"
+                  min="0"
+                />
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={createCategoryMutation.isPending || updateCategoryMutation.isPending}
+                  className="btn-primary flex-1"
+                >
+                  {createCategoryMutation.isPending || updateCategoryMutation.isPending ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCategoryModalOpen(false);
+                    setIsEditCategoryModalOpen(false);
+                    setSelectedCategoryForDelete(null);
+                    resetCategoryFormData();
+                  }}
+                  className="btn-outline flex-1"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Category Modal */}
+      {isDeleteCategoryModalOpen && selectedCategoryForDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm">
+            <div className="p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="bg-red-100 rounded-full p-3">
+                  <AlertCircle className="h-6 w-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Delete Category?</h3>
+                  <p className="text-sm text-gray-600">This action cannot be undone</p>
+                </div>
+              </div>
+
+              <p className="text-gray-700 mb-2">
+                Are you sure you want to delete <strong>{selectedCategoryForDelete.name}</strong>?
+              </p>
+              <p className="text-sm text-yellow-700 bg-yellow-50 p-3 rounded mb-6">
+                Note: Items in this category will not be deleted, but they will become unassigned.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setIsDeleteCategoryModalOpen(false);
+                    setSelectedCategoryForDelete(null);
+                  }}
+                  className="btn-outline flex-1"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => deleteCategoryMutation.mutate(selectedCategoryForDelete._id)}
+                  disabled={deleteCategoryMutation.isPending}
+                  className="btn-danger flex-1"
+                >
+                  {deleteCategoryMutation.isPending ? 'Deleting...' : 'Delete'}
                 </button>
               </div>
             </div>
@@ -638,4 +986,3 @@ const Menu = () => {
 };
 
 export default Menu;
-
