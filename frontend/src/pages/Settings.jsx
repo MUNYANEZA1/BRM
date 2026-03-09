@@ -10,7 +10,7 @@ const Settings = () => {
   const { user, updateProfile } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('general');
-  const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
+  const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'owner';
   
   // General Settings State
   const [generalSettings, setGeneralSettings] = useState({
@@ -243,7 +243,7 @@ const Settings = () => {
                     <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                     <div>
                       <h4 className="font-semibold text-yellow-900 mb-1">Access Restricted</h4>
-                      <p className="text-yellow-700 text-sm">Only Admins and Managers can modify general restaurant settings. Please contact your manager for access.</p>
+                      <p className="text-yellow-700 text-sm">Only Admins, Managers, and Owners can modify general restaurant settings. Please contact your manager for access.</p>
                     </div>
                   </div>
                 ) : (
