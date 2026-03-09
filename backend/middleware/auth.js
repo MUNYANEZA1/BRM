@@ -36,6 +36,7 @@ const authenticateToken = async (req, res, next) => {
 
     // Add user to request object
     req.user = user;
+    req.user.company = decoded.company;
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
@@ -81,19 +82,19 @@ const authorizeRoles = (...roles) => {
 };
 
 // Middleware to check if user is admin or manager
-const isAdminOrManager = authorizeRoles('admin', 'manager');
+const isAdminOrManager = authorizeRoles('admin', 'manager', 'owner');
 
 // Middleware to check if user is admin only
-const isAdmin = authorizeRoles('admin');
+const isAdmin = authorizeRoles('admin', 'owner');
 
-// Middleware to check if user can manage orders (waiter, cashier, manager, admin)
-const canManageOrders = authorizeRoles('waiter', 'cashier', 'manager', 'admin');
+// Middleware to check if user can manage orders (waiter, cashier, manager, admin, owner)
+const canManageOrders = authorizeRoles('waiter', 'cashier', 'manager', 'admin', 'owner');
 
-// Middleware to check if user can manage inventory (stock_manager, manager, admin)
-const canManageInventory = authorizeRoles('stock_manager', 'manager', 'admin');
+// Middleware to check if user can manage inventory (stock_manager, manager, admin, owner)
+const canManageInventory = authorizeRoles('stock_manager', 'manager', 'admin', 'owner');
 
-// Middleware to check if user can handle payments (cashier, manager, admin)
-const canHandlePayments = authorizeRoles('cashier', 'manager', 'admin');
+// Middleware to check if user can handle payments (cashier, manager, admin, owner)
+const canHandlePayments = authorizeRoles('cashier', 'manager', 'admin', 'owner');
 
 module.exports = {
   authenticateToken,

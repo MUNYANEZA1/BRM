@@ -3,7 +3,7 @@ const Settings = require('../models/Settings');
 // Get settings
 const getSettings = async (req, res) => {
   try {
-    let settings = await Settings.findOne();
+    let settings = await Settings.findOne({ company: req.user.company });
     
     // If no settings exist, create default ones
     if (!settings) {
@@ -13,7 +13,8 @@ const getSettings = async (req, res) => {
         timezone: 'Africa/Kigali',
         taxRate: 18,
         serviceCharge: 10,
-        createdBy: req.user._id
+        createdBy: req.user._id,
+        company: req.user.company
       });
     }
     
@@ -57,7 +58,7 @@ const updateSettings = async (req, res) => {
       businessHours
     } = req.body;
 
-    let settings = await Settings.findOne();
+    let settings = await Settings.findOne({ company: req.user.company });
     
     if (!settings) {
       // Create new settings if they don't exist
@@ -84,7 +85,8 @@ const updateSettings = async (req, res) => {
         notifySecurityAlerts,
         businessHours,
         createdBy: req.user._id,
-        lastUpdatedBy: req.user._id
+        lastUpdatedBy: req.user._id,
+        company: req.user.company
       });
     } else {
       // Update existing settings

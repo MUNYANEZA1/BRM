@@ -6,10 +6,13 @@ if (!process.env.JWT_SECRET) {
 }
 
 // Generate JWT token
-const generateToken = (userId) => {
+const generateToken = (user) => {
   try {
     return jwt.sign(
-      { userId },
+      { 
+        userId: user._id,
+        company: user.company
+      },
       process.env.JWT_SECRET,
       { 
         expiresIn: '24h',
@@ -24,10 +27,14 @@ const generateToken = (userId) => {
 };
 
 // Generate refresh token (longer expiry)
-const generateRefreshToken = (userId) => {
+const generateRefreshToken = (user) => {
   try {
     return jwt.sign(
-      { userId, type: 'refresh' },
+      { 
+        userId: user._id, 
+        company: user.company,
+        type: 'refresh' 
+      },
       process.env.JWT_SECRET,
       { 
         expiresIn: '7d',

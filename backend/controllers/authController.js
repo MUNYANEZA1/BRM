@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Company = require('../models/Company');
 const { generateToken, generateRefreshToken } = require('../utils/jwt');
 
 // Register new user
@@ -26,10 +27,16 @@ const register = async (req, res) => {
       });
     }
 
-    // For public registration we ignore any supplied role and always use admin.
-    // Admins creating users via the dashboard can still specify a role using the
-    // separate users API, not the public register endpoint.
-    const assignedRole = 'admin';
+    // For public registration, create a new company and set user as owner
+    const assignedRole = 'owner';
+
+    // Create company
+    const company = new Company({
+      name: `${firstName} ${lastName}'s Company`, // Default name, can be changed later
+      owner: null, // Will set after user creation
+      description: 'Restaurant/Bar Management Company'
+    });
+    await company.save();
 
     // Create new user
     const user = new User({
@@ -40,14 +47,19 @@ const register = async (req, res) => {
       lastName,
       role: assignedRole,
       phone,
+      company: company._id,
       createdBy: req.user ? req.user._id : null
     });
 
     await user.save();
 
+    // Update company owner
+    company.owner = user._id;
+    await company.save();
+
     // Generate tokens
-    const token = generateToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
+    const token = generateToken(user);
+    const refreshToken = generateRefreshToken(user);
 
     res.status(201).json({
       success: true,
@@ -127,8 +139,8 @@ const login = async (req, res) => {
     await user.save();
 
     // Generate tokens
-    const token = generateToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
+    const token = generateToken(user);
+    const refreshToken = generateRefreshToken(user);
 
     res.json({
       success: true,

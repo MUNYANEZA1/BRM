@@ -4,7 +4,7 @@ const categorySchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, 'Category name is required'],
-    unique: true,
+    unique: false, // Will use compound index
     trim: true,
     maxlength: [50, 'Category name cannot exceed 50 characters']
   },
@@ -25,13 +25,19 @@ const categorySchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: true
   }
 }, {
   timestamps: true
 });
 
 // Index for better query performance
-// Note: name has unique: true, so no explicit index needed
+// Note: name has compound unique index per company
+categorySchema.index({ name: 1, company: 1 }, { unique: true });
 categorySchema.index({ isActive: 1 });
 categorySchema.index({ sortOrder: 1 });
 

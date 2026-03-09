@@ -18,7 +18,7 @@ const getAllOrders = async (req, res) => {
     } = req.query;
     
     // Build filter object
-    const filter = {};
+    const filter = { company: req.user.company };
     if (status) filter.status = status;
     if (paymentStatus) filter.paymentStatus = paymentStatus;
     if (table) filter.table = table;
@@ -117,6 +117,13 @@ const createOrder = async (req, res) => {
       });
     }
 
+    if (table.company.toString() !== req.user.company.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Table belongs to different company'
+      });
+    }
+
     if (table.status === 'out_of_order') {
       return res.status(400).json({
         success: false,
@@ -135,6 +142,13 @@ const createOrder = async (req, res) => {
         return res.status(404).json({
           success: false,
           message: `Menu item not found: ${item.menuItemId}`
+        });
+      }
+
+      if (menuItem.company.toString() !== req.user.company.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: `Access denied: Menu item belongs to different company: ${menuItem.name}`
         });
       }
 
@@ -184,7 +198,8 @@ const createOrder = async (req, res) => {
       notes,
       estimatedPrepTime,
       waiter: req.user._id,
-      createdBy: req.user._id
+      createdBy: req.user._id,
+      company: req.user.company
     });
 
     await order.save();

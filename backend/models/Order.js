@@ -38,7 +38,7 @@ const orderItemSchema = new mongoose.Schema({
 const orderSchema = new mongoose.Schema({
   orderNumber: {
     type: String,
-    unique: true,
+    unique: false, // Will use compound index
     required: true
   },
   table: {
@@ -135,13 +135,19 @@ const orderSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: true
   }
 }, {
   timestamps: true
 });
 
 // Indexes for better query performance
-// Note: orderNumber has unique: true, so no explicit index needed
+// Note: orderNumber has compound unique index per company
+orderSchema.index({ orderNumber: 1, company: 1 }, { unique: true });
 orderSchema.index({ table: 1 });
 orderSchema.index({ status: 1 });
 orderSchema.index({ paymentStatus: 1 });

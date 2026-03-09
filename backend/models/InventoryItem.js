@@ -4,7 +4,7 @@ const inventoryItemSchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, 'Item name is required'],
-    unique: true,
+    unique: false, // Will use compound index
     trim: true,
     maxlength: [100, 'Item name cannot exceed 100 characters']
   },
@@ -15,7 +15,7 @@ const inventoryItemSchema = new mongoose.Schema({
   },
   sku: {
     type: String,
-    unique: true,
+    unique: false, // Will use compound index
     sparse: true,
     trim: true,
     uppercase: true
@@ -90,13 +90,20 @@ const inventoryItemSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: true
   }
 }, {
   timestamps: true
 });
 
 // Indexes for better query performance
-// Note: name and sku have unique: true, so no explicit index needed
+// Note: name and sku have compound unique indexes per company
+inventoryItemSchema.index({ name: 1, company: 1 }, { unique: true });
+inventoryItemSchema.index({ sku: 1, company: 1 }, { unique: true, sparse: true });
 inventoryItemSchema.index({ category: 1 });
 inventoryItemSchema.index({ currentStock: 1 });
 inventoryItemSchema.index({ isActive: 1 });

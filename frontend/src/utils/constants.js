@@ -1,5 +1,6 @@
 // User roles
 export const USER_ROLES = {
+  OWNER: 'owner',
   ADMIN: 'admin',
   MANAGER: 'manager',
   CASHIER: 'cashier',
@@ -125,6 +126,16 @@ export const STATUS_COLORS = {
 
 // Navigation items based on user roles
 export const NAVIGATION_ITEMS = {
+  [USER_ROLES.OWNER]: [
+    { name: 'Dashboard', href: '/dashboard', icon: 'LayoutDashboard' },
+    { name: 'Orders', href: '/orders', icon: 'ShoppingCart' },
+    { name: 'Menu', href: '/menu', icon: 'Menu' },
+    { name: 'Tables', href: '/tables', icon: 'Grid3x3' },
+    { name: 'Inventory', href: '/inventory', icon: 'Package' },
+    { name: 'Users', href: '/users', icon: 'Users' },
+    { name: 'Reports', href: '/reports', icon: 'BarChart3' },
+    { name: 'Settings', href: '/settings', icon: 'Settings' },
+  ],
   [USER_ROLES.ADMIN]: [
     { name: 'Dashboard', href: '/dashboard', icon: 'LayoutDashboard' },
     { name: 'Orders', href: '/orders', icon: 'ShoppingCart' },

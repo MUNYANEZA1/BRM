@@ -13,7 +13,7 @@ const getAllInventoryItems = async (req, res) => {
     } = req.query;
     
     // Build filter object
-    const filter = {};
+    const filter = { company: req.user.company };
     // Only filter by isActive if explicitly specified
     if (isActive !== undefined) {
       filter.isActive = isActive === 'true' || isActive === true;
@@ -141,7 +141,8 @@ const createInventoryItem = async (req, res) => {
       expiryDate,
       location,
       lastRestocked: currentStock > 0 ? new Date() : undefined,
-      createdBy: req.user._id
+      createdBy: req.user._id,
+      company: req.user.company
     });
 
     await inventoryItem.save();

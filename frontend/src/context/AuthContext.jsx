@@ -6,6 +6,7 @@ const AuthContext = createContext();
 
 const initialState = {
   user: null,
+  company: null,
   token: null,
   isAuthenticated: false,
   isLoading: true,
@@ -17,6 +18,7 @@ const authReducer = (state, action) => {
       return {
         ...state,
         user: action.payload.user,
+        company: action.payload.user.company,
         token: action.payload.token,
         isAuthenticated: true,
         isLoading: false,
@@ -25,6 +27,7 @@ const authReducer = (state, action) => {
       return {
         ...state,
         user: null,
+        company: null,
         token: null,
         isAuthenticated: false,
         isLoading: false,
@@ -38,6 +41,7 @@ const authReducer = (state, action) => {
       return {
         ...state,
         user: action.payload,
+        company: action.payload.company,
       };
     default:
       return state;

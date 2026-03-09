@@ -7,7 +7,7 @@ const getAllTables = async (req, res) => {
     const { location, status, isActive } = req.query;
     
     // Build filter object
-    const filter = {};
+    const filter = { company: req.user.company };
     // Only add isActive filter if explicitly provided
     if (isActive !== undefined) {
       filter.isActive = isActive === 'true' || isActive === true;
@@ -73,7 +73,8 @@ const createTable = async (req, res) => {
       capacity,
       location,
       notes,
-      createdBy: req.user._id
+      createdBy: req.user._id,
+      company: req.user.company
     });
 
     await table.save();

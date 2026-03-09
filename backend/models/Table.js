@@ -4,7 +4,7 @@ const tableSchema = new mongoose.Schema({
   number: {
     type: String,
     required: [true, 'Table number is required'],
-    unique: true,
+    unique: false, // Will use compound index
     trim: true
   },
   capacity: {
@@ -24,7 +24,7 @@ const tableSchema = new mongoose.Schema({
   },
   qrCode: {
     type: String,
-    unique: true,
+    unique: false, // Will use compound index
     sparse: true
   },
   isActive: {
@@ -40,13 +40,20 @@ const tableSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: true
   }
 }, {
   timestamps: true
 });
 
 // Indexes for better query performance
-// Note: number and qrCode have unique: true, so no explicit index needed
+// Note: number and qrCode have compound unique indexes per company
+tableSchema.index({ number: 1, company: 1 }, { unique: true });
+tableSchema.index({ qrCode: 1, company: 1 }, { unique: true, sparse: true });
 tableSchema.index({ status: 1 });
 tableSchema.index({ location: 1 });
 tableSchema.index({ isActive: 1 });

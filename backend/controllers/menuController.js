@@ -8,7 +8,7 @@ const getAllCategories = async (req, res) => {
   try {
     const { includeInactive = false } = req.query;
     
-    const filter = includeInactive === 'true' ? {} : { isActive: true };
+    const filter = includeInactive === 'true' ? { company: req.user.company } : { company: req.user.company, isActive: true };
     const categories = await Category.find(filter)
       .populate('createdBy', 'username firstName lastName')
       .sort({ sortOrder: 1, name: 1 });
@@ -35,7 +35,8 @@ const createCategory = async (req, res) => {
       name,
       description,
       sortOrder,
-      createdBy: req.user._id
+      createdBy: req.user._id,
+      company: req.user.company
     });
 
     await category.save();
@@ -162,7 +163,7 @@ const getAllMenuItems = async (req, res) => {
     } = req.query;
     
     // Build filter object
-    const filter = {};
+    const filter = { company: req.user.company };
     if (isActive !== undefined) filter.isActive = isActive === 'true';
     if (isAvailable !== undefined) filter.isAvailable = isAvailable === 'true';
     if (category) filter.category = category;
@@ -255,6 +256,22 @@ const createMenuItem = async (req, res) => {
       sortOrder
     } = req.body;
 
+    // Validate category belongs to user's company
+    const categoryDoc = await Category.findById(category);
+    if (!categoryDoc) {
+      return res.status(404).json({
+        success: false,
+        message: 'Category not found'
+      });
+    }
+
+    if (categoryDoc.company.toString() !== req.user.company.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Category belongs to different company'
+      });
+    }
+
     const menuItem = new MenuItem({
       name,
       description,
@@ -268,7 +285,8 @@ const createMenuItem = async (req, res) => {
       allergens,
       tags,
       sortOrder,
-      createdBy: req.user._id
+      createdBy: req.user._id,
+      company: req.user.company
     });
 
     await menuItem.save();

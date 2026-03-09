@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema({
   username: {
     type: String,
     required: [true, 'Username is required'],
-    unique: true,
+    unique: false, // Remove global unique, will use compound index
     trim: true,
     minlength: [3, 'Username must be at least 3 characters long'],
     maxlength: [30, 'Username cannot exceed 30 characters']
@@ -13,7 +13,7 @@ const userSchema = new mongoose.Schema({
   email: {
     type: String,
     required: [true, 'Email is required'],
-    unique: true,
+    unique: false, // Remove global unique, will use compound index
     trim: true,
     lowercase: true,
     match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
@@ -37,8 +37,13 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'manager', 'cashier', 'waiter', 'stock_manager'],
+    enum: ['owner', 'admin', 'manager', 'cashier', 'waiter', 'stock_manager'],
     default: 'waiter',
+    required: true
+  },
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
     required: true
   },
   phone: {
@@ -62,8 +67,8 @@ const userSchema = new mongoose.Schema({
 });
 
 // Index for better query performance
-userSchema.index({ username: 1 });
-userSchema.index({ email: 1 });
+userSchema.index({ username: 1, company: 1 }, { unique: true });
+userSchema.index({ email: 1, company: 1 }, { unique: true });
 userSchema.index({ role: 1 });
 
 // Hash password before saving

@@ -8,7 +8,7 @@ const getAllUsers = async (req, res) => {
     const { page = 1, limit = 10, role, search, isActive } = req.query;
     
     // Build filter object
-    const filter = {};
+    const filter = { company: req.user.company };
     if (role) filter.role = role;
     if (isActive !== undefined) filter.isActive = isActive === 'true';
     if (search) {
@@ -98,8 +98,8 @@ const createUser = async (req, res) => {
       });
     }
 
-    // Only admin can create admin users
-    if (role === 'admin' && req.user.role !== 'admin') {
+    // Only admin or owner can create admin users
+    if (role === 'admin' && !['admin', 'owner'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
         message: 'Only admin can create admin users'
@@ -118,6 +118,7 @@ const createUser = async (req, res) => {
       lastName,
       role: role || 'waiter',
       phone,
+      company: req.user.company,
       createdBy: req.user._id
     });
 
@@ -170,8 +171,8 @@ const updateUser = async (req, res) => {
       });
     }
 
-    // Only admin can update admin users or change roles to admin
-    if ((user.role === 'admin' || role === 'admin') && req.user.role !== 'admin') {
+    // Only admin or owner can update admin users or change roles to admin
+    if ((user.role === 'admin' || role === 'admin') && !['admin', 'owner'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
         message: 'Only admin can update admin users or assign admin role'
@@ -243,7 +244,7 @@ const deleteUser = async (req, res) => {
     }
 
     // Prevent deleting admin users by non-admin
-    if (user.role === 'admin' && req.user.role !== 'admin') {
+    if (user.role === 'admin' && !['admin', 'owner'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
         message: 'Only admin can delete admin users'
@@ -309,7 +310,7 @@ const toggleUserStatus = async (req, res) => {
     }
 
     // Prevent deactivating admin users by non-admin
-    if (user.role === 'admin' && req.user.role !== 'admin') {
+    if (user.role === 'admin' && !['admin', 'owner'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
         message: 'Only admin can change admin user status'
