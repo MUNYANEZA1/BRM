@@ -33,7 +33,6 @@ const Dashboard = () => {
       const response = await tablesAPI.getTables({ limit: 100 });
       return response.data.data.tables || [];
     },
-    refetchInterval: 30000, // Refetch every 30 seconds
   });
 
   // Fetch orders data
@@ -43,7 +42,6 @@ const Dashboard = () => {
       const response = await ordersAPI.getOrders({ limit: 100 });
       return response.data.data.orders || [];
     },
-    refetchInterval: 15000, // Refetch every 15 seconds
   });
 
   // Fetch inventory data
@@ -53,7 +51,6 @@ const Dashboard = () => {
       const response = await inventoryAPI.getInventoryItems({ limit: 100 });
       return response.data.data.inventoryItems || [];
     },
-    refetchInterval: 60000, // Refetch every 60 seconds
   });
 
   // Calculate stats from real data

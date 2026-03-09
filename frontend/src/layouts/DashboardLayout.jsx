@@ -40,7 +40,7 @@ const DashboardLayout = ({ children }) => {
         return null;
       }
     },
-    refetchInterval: 60000, // Refetch every 60 seconds
+    staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
   // Update restaurant name when settings load

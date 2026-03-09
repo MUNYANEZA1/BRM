@@ -67,10 +67,6 @@ const Inventory = () => {
         throw err;
       }
     },
-    staleTime: 0, // Always consider data stale
-    refetchOnMount: 'stale', // Refetch when component mounts
-    refetchOnWindowFocus: true, // Refetch when window gains focus
-    refetchInterval: 10000, // Refetch every 10 seconds
     retry: 3,
     retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
   });

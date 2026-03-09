@@ -51,7 +51,7 @@ const Settings = () => {
         return null;
       }
     },
-    staleTime: 60000, // 1 minute
+    staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
   // Fetch current user profile

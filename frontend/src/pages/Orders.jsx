@@ -33,10 +33,6 @@ const Orders = () => {
       const response = await ordersAPI.getOrders({ limit: 100 });
       return response.data.data.orders || [];
     },
-    staleTime: 0,
-    refetchOnMount: 'stale',
-    refetchOnWindowFocus: true,
-    refetchInterval: 10000,
     retry: 3,
   });
 

@@ -26,7 +26,6 @@ const Reports = () => {
       const response = await ordersAPI.getOrders({ limit: 1000 });
       return response.data.data.orders || [];
     },
-    refetchInterval: 30000,
   });
 
   // Fetch inventory items
@@ -36,7 +35,6 @@ const Reports = () => {
       const response = await inventoryAPI.getInventoryItems({ limit: 1000 });
       return response.data.data.inventoryItems || [];
     },
-    refetchInterval: 60000,
   });
 
   // Fetch users for staff performance
@@ -46,7 +44,6 @@ const Reports = () => {
       const response = await usersAPI.getUsers({ limit: 1000 });
       return response.data.data.users || [];
     },
-    refetchInterval: 60000,
   });
 
   // Helper functions

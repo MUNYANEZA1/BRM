@@ -47,10 +47,6 @@ const Menu = () => {
         throw err;
       }
     },
-    staleTime: 0,
-    refetchOnMount: 'stale',
-    refetchOnWindowFocus: true,
-    refetchInterval: 10000,
     retry: 3,
   });
 
