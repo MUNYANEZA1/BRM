@@ -55,12 +55,12 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// Home route handler: show dashboard for authenticated admins, otherwise customer menu
+// Home route handler: show dashboard for authenticated users, otherwise redirect to login
 const HomeRoute = () => {
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) return <LoadingSpinner />;
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
-  return <CustomerMenu />;
+  return <Navigate to="/login" replace />;
 };
 
 // Public Route component (redirect if authenticated)
