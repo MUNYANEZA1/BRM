@@ -39,6 +39,10 @@ const authenticateToken = async (req, res, next) => {
     req.user = user;
     // token may not always include company (older tokens), so fall back to DB value
     req.user.company = decoded.company || user.company;
+
+    if (!req.user.company) {
+      console.warn('⚠️ Authenticated user has no company. Operations will be limited.');
+    }
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {

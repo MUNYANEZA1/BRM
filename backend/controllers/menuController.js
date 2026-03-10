@@ -9,7 +9,7 @@ const { checkCompanyAccess, createCompanyFilter } = require('../utils/companyUti
 // Get all categories
 const getAllCategories = async (req, res) => {
   try {
-    const { includeInactive = false } = req.query;
+    const includeInactive = req.query.includeInactive === 'true';
     
     // Convert company ID to ObjectId for proper matching
     const mongoose = require('mongoose');
@@ -17,7 +17,10 @@ const getAllCategories = async (req, res) => {
       ? new mongoose.Types.ObjectId(req.user.company)
       : req.user.company;
     
-    const filter = includeInactive === 'true' ? { company: companyId } : { company: companyId, isActive: true };
+    const filter = { company: companyId };
+    if (!includeInactive) {
+      filter.isActive = true;
+    }
     const categories = await Category.find(filter)
       .populate('createdBy', 'username firstName lastName')
       .sort({ sortOrder: 1, name: 1 });
@@ -168,7 +171,7 @@ const getAllMenuItems = async (req, res) => {
       category, 
       search, 
       isAvailable, 
-      isActive = true 
+      isActive 
     } = req.query;
     
     // Build filter object with company restriction if available
@@ -179,9 +182,20 @@ const getAllMenuItems = async (req, res) => {
         ? new mongoose.Types.ObjectId(req.user.company)
         : req.user.company;
     } else {
-      console.warn('⚠️ WARNING: authenticated user has no company in token or profile');
+      // user has no company assigned – this should be rare. Returning empty set.
+      return res.json({
+        success: true,
+        data: { menuItems: [], pagination: { current:1, pages:0, total:0, limit:parseInt(limit) } }
+      });
     }
-    if (isActive !== undefined) filter.isActive = isActive === 'true';
+
+    // default visibility: only active items unless explicitly overridden
+    if (isActive !== undefined) {
+      filter.isActive = isActive === 'true';
+    } else {
+      filter.isActive = true;
+    }
+
     if (isAvailable !== undefined) filter.isAvailable = isAvailable === 'true';
     if (category) filter.category = category;
     if (search) {

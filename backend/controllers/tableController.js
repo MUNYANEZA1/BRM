@@ -303,9 +303,9 @@ const getTableQRCode = async (req, res) => {
     }
 
     // Generate QR code URL for customer ordering
-    // Use a simpler URL format that's easier to scan
+    // include company and table to ensure correct menu loads
     const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const qrCodeUrl = `${baseUrl}/?table=${encodeURIComponent(table.qrCode)}`;
+    const qrCodeUrl = `${baseUrl}/customer-menu?company=${table.company}&table=${encodeURIComponent(table.qrCode)}`;
 
     // Generate QR code as data URL
     const qrCodeDataUrl = await QRCode.toDataURL(qrCodeUrl, {
