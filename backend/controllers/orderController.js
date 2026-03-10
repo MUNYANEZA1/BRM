@@ -2,6 +2,7 @@ const Order = require('../models/Order');
 const Table = require('../models/Table');
 const MenuItem = require('../models/MenuItem');
 const InventoryItem = require('../models/InventoryItem');
+const { checkCompanyAccess, createCompanyFilter } = require('../utils/companyUtils');
 
 // Get all orders
 const getAllOrders = async (req, res) => {
@@ -18,7 +19,7 @@ const getAllOrders = async (req, res) => {
     } = req.query;
     
     // Build filter object
-    const filter = { company: req.user.company };
+    const filter = createCompanyFilter(req.user);
     if (status) filter.status = status;
     if (paymentStatus) filter.paymentStatus = paymentStatus;
     if (table) filter.table = table;
@@ -80,6 +81,15 @@ const getOrderById = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Order not found'
+      });
+    }
+
+    try {
+      checkCompanyAccess(order, req.user);
+    } catch (error) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
       });
     }
 
@@ -255,6 +265,15 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
+    try {
+      checkCompanyAccess(order, req.user);
+    } catch (error) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
+      });
+    }
+
     // Handle cancellation
     if (status === 'cancelled') {
       if (!cancellationReason) {
@@ -314,6 +333,15 @@ const processPayment = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Order not found'
+      });
+    }
+
+    try {
+      checkCompanyAccess(order, req.user);
+    } catch (error) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
       });
     }
 
@@ -408,6 +436,15 @@ const updateOrderItemStatus = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Order not found'
+      });
+    }
+
+    try {
+      checkCompanyAccess(order, req.user);
+    } catch (error) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
       });
     }
 

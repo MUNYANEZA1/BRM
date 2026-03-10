@@ -73,11 +73,28 @@ const CustomerMenu = () => {
     }).format(amount);
   };
 
+  // flatten menu data returned by backend (categories with items)
+  const menuItems = (customerMenu.menu || []).flatMap(cat =>
+    (cat.items || []).map(item => ({
+      ...item,
+      category: cat.category // keep category info on item for filtering/display
+    }))
+  );
+
+  // build category list for the filter bar
+  const categories = [
+    { id: 'all', name: 'All Items', icon: '📋' },
+    ...(customerMenu.menu || []).map(cat => ({
+      id: cat.category._id || cat.category,
+      name: cat.category.name || 'Uncategorized',
+      icon: '🍽️'
+    }))
+  ];
+
   const filteredItems = menuItems.filter(item => {
-    const itemId = item._id || item.id;
     const categoryId = item.category?._id || item.category;
     const matchesCategory = selectedCategory === 'all' || categoryId === selectedCategory;
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = (item.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (item.description || '').toLowerCase().includes(searchTerm.toLowerCase());
     const isAvailable = item.isAvailable !== false;
     return matchesCategory && matchesSearch && isAvailable;
@@ -252,15 +269,15 @@ const CustomerMenu = () => {
                 <p className="text-gray-500">No menu items found.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredItems.map((item) => {
-                  const itemId = item._id || item.id;
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                {filteredItems.map((item, idx) => {
+                  const itemId = item._id || item.id || `item-${idx}`;
                   const quantity = getCartItemQuantity(itemId);
                   return (
                     <div key={itemId} className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                       <div className="relative">
                         <img
-                          src={item.image || `${API_BASE_URL}/placeholder/300/200`}
+                          src={item.image || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="300" height="200"%3E%3Crect fill="%23e5e7eb" width="300" height="200"/%3E%3Ctext x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="system-ui" font-size="16" fill="%236b7280"%3ENo image%3C/text%3E%3C/svg%3E'}
                           alt={item.name}
                           className="w-full h-48 object-cover"
                         />
@@ -276,13 +293,13 @@ const CustomerMenu = () => {
                         )}
                       </div>
                       
-                      <div className="p-4">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.name}</h3>
-                        <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.description || 'No description'}</p>
-                        
-                        {(item.allergens || []).length > 0 && (
-                          <div className="mb-3">
-                            <p className="text-xs text-gray-500">
+                    <div className="p-4">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.name}</h3>
+                      <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.description || 'No description'}</p>
+                      
+                      {(item.allergens || []).length > 0 && (
+                        <div className="mb-3">
+                          <p className="text-xs text-gray-500">
                             Contains: {item.allergens.join(', ')}
                           </p>
                         </div>
@@ -290,7 +307,7 @@ const CustomerMenu = () => {
                       
                       <div className="flex items-center justify-between">
                         <span className="text-lg font-bold text-gray-900">
-                          {formatCurrency(item.price)}
+                          {formatCurrency(item.price || 0)}
                         </span>
                         
                         {quantity === 0 ? (
@@ -322,17 +339,9 @@ const CustomerMenu = () => {
                         )}
                       </div>
                     </div>
-                  </div>
+                    </div>
                   );
                 })}
-              </div>
-            )}            {filteredItems.length === 0 && (
-              <div className="text-center py-12">
-                <div className="text-gray-500">
-                  <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg font-medium">No items found</p>
-                  <p className="text-sm">Try adjusting your search or category filter</p>
-                </div>
               </div>
             )}
           </div>
@@ -357,7 +366,7 @@ const CustomerMenu = () => {
                           <div key={itemId} className="flex items-center justify-between">
                             <div className="flex-1">
                               <h4 className="text-sm font-medium text-gray-900">{item.name}</h4>
-                              <p className="text-sm text-gray-500">{formatCurrency(item.price)} each</p>
+                              <p className="text-sm text-gray-500">{formatCurrency(item.price || 0)} each</p>
                             </div>
                             <div className="flex items-center space-x-2">
                               <button

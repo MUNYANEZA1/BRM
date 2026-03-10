@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Search, Edit, Trash2, X, FolderPlus, AlertCircle, CheckCircle, ClipboardCopy, Menu as MenuIcon, PanelLeftClose } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, X, FolderPlus, AlertCircle, CheckCircle, ClipboardCopy, Menu as MenuIcon, PanelLeftClose, Download } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { menuAPI, uploadAPI } from '../services/api';
@@ -88,9 +88,7 @@ const Menu = () => {
     queryKey: ['menuItems'],
     queryFn: async () => {
       try {
-        console.log('Fetching menu items...');
         const response = await menuAPI.getMenuItems({ limit: 100 });
-        console.log('Menu items response:', response.data);
         return response.data.data.menuItems || [];
       } catch (err) {
         console.error('Error fetching menu items:', err);
@@ -364,7 +362,7 @@ const Menu = () => {
       )}
       
       {/* Left Sidebar - Categories */}
-      <div className={`w-64 flex-shrink-0 transition-all duration-300 ease-in-out z-50 ${sidebarOpen ? 'block fixed inset-y-0 left-0 md:relative md:inset-auto' : 'hidden md:block'}`}>
+      <div className={`w-full sm:w-64 flex-shrink-0 transition-all duration-300 ease-in-out z-50 bg-white ${sidebarOpen ? 'block fixed inset-y-0 left-0 md:relative md:inset-auto' : 'hidden md:block'}`}>
         <div className="sticky top-0">
           <div className="bg-white rounded-lg shadow overflow-hidden">
             {/* Categories Header */}
@@ -467,7 +465,7 @@ const Menu = () => {
       {/* Main Content */}
       <div className="flex-1 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 w-full">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -482,13 +480,13 @@ const Menu = () => {
                 {selectedCategory 
                   ? `${categories.find(c => c._id === selectedCategory)?.name}`
                   : 'All Menu Items'
-                } ({filteredItems.length} items)
+                } ({filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'})
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
             {customerMenuUrl && (
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-col sm:flex-row items-center bg-white border border-gray-200 rounded-lg p-2 space-y-2 sm:space-y-0 sm:space-x-2 shadow-sm">
                 <img src={qrCodeSrc} alt="QR code" className="h-12 w-12" />
                 <div className="flex items-center space-x-1">
                   <a
@@ -503,6 +501,14 @@ const Menu = () => {
                   <button onClick={handleCopyUrl} className="p-1">
                     <ClipboardCopy className="h-4 w-4 text-gray-500 hover:text-gray-700" />
                   </button>
+                  <a
+                    href={qrCodeSrc}
+                    download="customer-menu-qr.png"
+                    className="p-1"
+                    title="Download QR code"
+                  >
+                    <Download className="h-4 w-4 text-gray-500 hover:text-gray-700" />
+                  </a>
                 </div>
               </div>
             )}
@@ -605,10 +611,10 @@ const Menu = () => {
             ))}
 
             {filteredItems.length === 0 && (
-              <div className="col-span-full text-center py-12">
-                <div className="text-gray-500">
-                  <p className="text-lg font-medium">No menu items found</p>
-                  <p className="text-sm">Try adjusting your search or create a new item</p>
+              <div className="col-span-full text-center py-16">
+                <div className="text-gray-500 space-y-2">
+                  <p className="text-xl font-semibold">No menu items found</p>
+                  <p className="text-base">Try adjusting your search or create a new item</p>
                 </div>
               </div>
             )}

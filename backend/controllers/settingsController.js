@@ -1,9 +1,10 @@
 const Settings = require('../models/Settings');
+const { createCompanyFilter } = require('../utils/companyUtils');
 
 // Get settings
 const getSettings = async (req, res) => {
   try {
-    let settings = await Settings.findOne({ company: req.user.company });
+    let settings = await Settings.findOne(createCompanyFilter(req.user));
     
     // If no settings exist, create default ones
     if (!settings) {
@@ -58,7 +59,7 @@ const updateSettings = async (req, res) => {
       businessHours
     } = req.body;
 
-    let settings = await Settings.findOne({ company: req.user.company });
+    let settings = await Settings.findOne(createCompanyFilter(req.user));
     
     if (!settings) {
       // Create new settings if they don't exist

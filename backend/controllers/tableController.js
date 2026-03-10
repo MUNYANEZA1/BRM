@@ -1,5 +1,6 @@
 const Table = require('../models/Table');
 const QRCode = require('qrcode');
+const { checkCompanyAccess, createCompanyFilter } = require('../utils/companyUtils');
 
 // Get all tables
 const getAllTables = async (req, res) => {
@@ -7,7 +8,7 @@ const getAllTables = async (req, res) => {
     const { location, status, isActive } = req.query;
     
     // Build filter object
-    const filter = { company: req.user.company };
+    const filter = createCompanyFilter(req.user);
     // Only add isActive filter if explicitly provided
     if (isActive !== undefined) {
       filter.isActive = isActive === 'true' || isActive === true;
@@ -47,6 +48,15 @@ const getTableById = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Table not found'
+      });
+    }
+
+    try {
+      checkCompanyAccess(table, req.user);
+    } catch (error) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
       });
     }
 
@@ -116,18 +126,28 @@ const updateTable = async (req, res) => {
     const { id } = req.params;
     const { number, capacity, location, notes, isActive, status } = req.body;
 
-    const table = await Table.findByIdAndUpdate(
-      id,
-      { number, capacity, location, notes, isActive, status },
-      { new: true, runValidators: true }
-    );
-
+    const table = await Table.findById(id);
     if (!table) {
       return res.status(404).json({
         success: false,
         message: 'Table not found'
       });
     }
+
+    try {
+      checkCompanyAccess(table, req.user);
+    } catch (error) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    const updatedTable = await Table.findByIdAndUpdate(
+      id,
+      { number, capacity, location, notes, isActive, status },
+      { new: true, runValidators: true }
+    );
 
     res.json({
       success: true,
@@ -165,13 +185,24 @@ const deleteTable = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const table = await Table.findByIdAndDelete(id);
+    const table = await Table.findById(id);
     if (!table) {
       return res.status(404).json({
         success: false,
         message: 'Table not found'
       });
     }
+
+    try {
+      checkCompanyAccess(table, req.user);
+    } catch (error) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    await Table.findByIdAndDelete(id);
 
     res.json({
       success: true,
@@ -200,6 +231,15 @@ const updateTableStatus = async (req, res) => {
       });
     }
 
+    try {
+      checkCompanyAccess(table, req.user);
+    } catch (error) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
+      });
+    }
+
     await table.updateStatus(status);
 
     res.json({
@@ -221,12 +261,11 @@ const getAvailableTables = async (req, res) => {
   try {
     const { location } = req.query;
     
-    let tables;
-    if (location) {
-      tables = await Table.findByLocation(location).where({ status: 'available' });
-    } else {
-      tables = await Table.findAvailable();
-    }
+    const filter = createCompanyFilter(req.user);
+    filter.status = 'available';
+    if (location) filter.location = location;
+
+    const tables = await Table.find(filter).sort({ number: 1 });
 
     res.json({
       success: true,
@@ -251,6 +290,15 @@ const getTableQRCode = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Table not found'
+      });
+    }
+
+    try {
+      checkCompanyAccess(table, req.user);
+    } catch (error) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
       });
     }
 

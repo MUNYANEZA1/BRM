@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const mongoose = require('mongoose');
 
 // Middleware to verify JWT token
 const authenticateToken = async (req, res, next) => {
@@ -36,7 +37,8 @@ const authenticateToken = async (req, res, next) => {
 
     // Add user to request object
     req.user = user;
-    req.user.company = decoded.company;
+    // token may not always include company (older tokens), so fall back to DB value
+    req.user.company = decoded.company || user.company;
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {

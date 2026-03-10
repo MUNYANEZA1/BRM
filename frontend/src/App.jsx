@@ -55,6 +55,14 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
+// Home route handler: show dashboard for authenticated admins, otherwise customer menu
+const HomeRoute = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return <LoadingSpinner />;
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  return <CustomerMenu />;
+};
+
 // Public Route component (redirect if authenticated)
 const PublicRoute = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -74,8 +82,8 @@ function AppRoutes() {
   return (
     <Router>
       <Routes>
-        {/* Root route - customer menu */}
-        <Route path="/" element={<CustomerMenu />} />
+        {/* Root route - redirect to dashboard for admins, otherwise show customer menu */}
+        <Route path="/" element={<HomeRoute />} />
         
         {/* Public routes */}
         <Route path="/customer-menu" element={<CustomerMenu />} />
@@ -194,8 +202,7 @@ function AppRoutes() {
           }
         />
 
-        {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        {/* Default redirect removed; handled by HomeRoute above */}
         
         {/* 404 page */}
         <Route path="*" element={<div className="flex items-center justify-center min-h-screen">

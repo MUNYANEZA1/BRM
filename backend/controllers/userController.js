@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const { sendNewUserCredentialsEmail } = require('../utils/emailService');
 const { generatePassword } = require('../utils/passwordGenerator');
+const { checkCompanyAccess, createCompanyFilter } = require('../utils/companyUtils');
 
 // Get all users (admin/manager only)
 const getAllUsers = async (req, res) => {
@@ -8,7 +9,7 @@ const getAllUsers = async (req, res) => {
     const { page = 1, limit = 10, role, search, isActive } = req.query;
     
     // Build filter object
-    const filter = { company: req.user.company };
+    const filter = createCompanyFilter(req.user);
     if (role) filter.role = role;
     if (isActive !== undefined) filter.isActive = isActive === 'true';
     if (search) {
@@ -65,6 +66,15 @@ const getUserById = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'User not found'
+      });
+    }
+
+    try {
+      checkCompanyAccess(user, req.user);
+    } catch (error) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
       });
     }
 
@@ -171,6 +181,15 @@ const updateUser = async (req, res) => {
       });
     }
 
+    try {
+      checkCompanyAccess(user, req.user);
+    } catch (error) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
+      });
+    }
+
     // Only admin or owner can update admin users or change roles to admin
     if ((user.role === 'admin' || role === 'admin') && !['admin', 'owner'].includes(req.user.role)) {
       return res.status(403).json({
@@ -240,6 +259,15 @@ const deleteUser = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'User not found'
+      });
+    }
+
+    try {
+      checkCompanyAccess(user, req.user);
+    } catch (error) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
       });
     }
 

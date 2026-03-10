@@ -1,6 +1,8 @@
 const Category = require('../models/Category');
 const MenuItem = require('../models/MenuItem');
 const Settings = require('../models/Settings');
+const mongoose = require('mongoose');
+const { checkCompanyAccess, createCompanyFilter } = require('../utils/companyUtils');
 
 // Category Controllers
 
@@ -9,7 +11,13 @@ const getAllCategories = async (req, res) => {
   try {
     const { includeInactive = false } = req.query;
     
-    const filter = includeInactive === 'true' ? { company: req.user.company } : { company: req.user.company, isActive: true };
+    // Convert company ID to ObjectId for proper matching
+    const mongoose = require('mongoose');
+    const companyId = mongoose.Types.ObjectId.isValid(req.user.company)
+      ? new mongoose.Types.ObjectId(req.user.company)
+      : req.user.company;
+    
+    const filter = includeInactive === 'true' ? { company: companyId } : { company: companyId, isActive: true };
     const categories = await Category.find(filter)
       .populate('createdBy', 'username firstName lastName')
       .sort({ sortOrder: 1, name: 1 });
@@ -154,7 +162,6 @@ const deleteCategory = async (req, res) => {
 // Get all menu items
 const getAllMenuItems = async (req, res) => {
   try {
-    console.log('getAllMenuItems called, user company:', req.user.company);
     const { 
       page = 1, 
       limit = 20, 
@@ -164,11 +171,16 @@ const getAllMenuItems = async (req, res) => {
       isActive = true 
     } = req.query;
     
-    // Build filter object
-    // const filter = { company: req.user.company };
-    const filter = {}; // temporarily remove company filter for testing
-    console.log('Filter:', filter);
-    // const filter = {}; // temporarily remove company filter for testing
+    // Build filter object with company restriction if available
+    const filter = {};
+    if (req.user.company) {
+      // Ensure company is converted to ObjectId for proper matching
+      filter.company = mongoose.Types.ObjectId.isValid(req.user.company)
+        ? new mongoose.Types.ObjectId(req.user.company)
+        : req.user.company;
+    } else {
+      console.warn('⚠️ WARNING: authenticated user has no company in token or profile');
+    }
     if (isActive !== undefined) filter.isActive = isActive === 'true';
     if (isAvailable !== undefined) filter.isAvailable = isAvailable === 'true';
     if (category) filter.category = category;
@@ -190,9 +202,9 @@ const getAllMenuItems = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit));
 
-    console.log('Found menu items:', menuItems.length);
-
     const total = await MenuItem.countDocuments(filter);
+
+    // debug logs removed in production
 
     res.json({
       success: true,
@@ -397,6 +409,7 @@ const deleteMenuItem = async (req, res) => {
 const getCustomerMenu = async (req, res) => {
   try {
     const companyId = req.query.company;
+    // no debug logs
     if (!companyId) {
       return res.status(400).json({
         success: false,

@@ -1,4 +1,5 @@
 const InventoryItem = require('../models/InventoryItem');
+const { checkCompanyAccess, createCompanyFilter } = require('../utils/companyUtils');
 
 // Get all inventory items
 const getAllInventoryItems = async (req, res) => {
@@ -13,7 +14,7 @@ const getAllInventoryItems = async (req, res) => {
     } = req.query;
     
     // Build filter object
-    const filter = { company: req.user.company };
+    const filter = createCompanyFilter(req.user);
     // Only filter by isActive if explicitly specified
     if (isActive !== undefined) {
       filter.isActive = isActive === 'true' || isActive === true;
@@ -43,10 +44,6 @@ const getAllInventoryItems = async (req, res) => {
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Inventory filter:', filter);
-    }
     
     const inventoryItems = await InventoryItem.find(filter)
       .populate('createdBy', 'username firstName lastName')
@@ -93,6 +90,15 @@ const getInventoryItemById = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Inventory item not found'
+      });
+    }
+
+    try {
+      checkCompanyAccess(inventoryItem, req.user);
+    } catch (error) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
       });
     }
 
@@ -185,18 +191,28 @@ const updateInventoryItem = async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
 
-    const inventoryItem = await InventoryItem.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true, runValidators: true }
-    );
-
+    const inventoryItem = await InventoryItem.findById(id);
     if (!inventoryItem) {
       return res.status(404).json({
         success: false,
         message: 'Inventory item not found'
       });
     }
+
+    try {
+      checkCompanyAccess(inventoryItem, req.user);
+    } catch (error) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    const updatedItem = await InventoryItem.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    );
 
     res.json({
       success: true,
@@ -235,13 +251,24 @@ const deleteInventoryItem = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const inventoryItem = await InventoryItem.findByIdAndDelete(id);
+    const inventoryItem = await InventoryItem.findById(id);
     if (!inventoryItem) {
       return res.status(404).json({
         success: false,
         message: 'Inventory item not found'
       });
     }
+
+    try {
+      checkCompanyAccess(inventoryItem, req.user);
+    } catch (error) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    await InventoryItem.findByIdAndDelete(id);
 
     res.json({
       success: true,
@@ -284,13 +311,20 @@ const updateStock = async (req, res) => {
       });
     }
 
+    try {
+      checkCompanyAccess(inventoryItem, req.user);
+    } catch (error) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
+      });
+    }
+
     const oldStock = inventoryItem.currentStock;
     await inventoryItem.updateStock(quantity, operation);
 
     // Log stock movement (development only – consider using a proper audit model)
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`Stock updated for ${inventoryItem.name}: ${oldStock} -> ${inventoryItem.currentStock} (${operation} ${quantity}) - Reason: ${reason || 'Not specified'}`);
-    }
+    // console.log removed
 
     res.json({
       success: true,
@@ -450,6 +484,13 @@ const bulkStockUpdate = async (req, res) => {
         const inventoryItem = await InventoryItem.findById(id);
         if (!inventoryItem) {
           errors.push({ id, error: 'Item not found' });
+          continue;
+        }
+
+        try {
+          checkCompanyAccess(inventoryItem, req.user);
+        } catch (error) {
+          errors.push({ id, error: error.message });
           continue;
         }
 
