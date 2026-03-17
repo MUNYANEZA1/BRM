@@ -16,6 +16,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { ordersAPI, tablesAPI, menuAPI } from '../services/api';
+import { devLog } from '../utils/logger';
 
 const Orders = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -23,6 +24,15 @@ const Orders = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isCreateOrderModalOpen, setIsCreateOrderModalOpen] = useState(false);
+  const [selectedTable, setSelectedTable] = useState(null);
+  const [orderItems, setOrderItems] = useState([]);
+  const [customerInfo, setCustomerInfo] = useState({
+    name: '',
+    phone: '',
+    email: ''
+  });
+  const [orderNotes, setOrderNotes] = useState('');
 
   const queryClient = useQueryClient();
 
@@ -37,6 +47,30 @@ const Orders = () => {
   });
 
   const orders = Array.isArray(ordersResponse) ? ordersResponse : [];
+
+  // Fetch tables
+  const { data: tablesResponse, error: tablesError } = useQuery({
+    queryKey: ['tables'],
+    queryFn: async () => {
+      const response = await tablesAPI.getTables({ limit: 100 });
+      return response.data.data.tables || [];
+    },
+    retry: 3,
+  });
+
+  const tables = Array.isArray(tablesResponse) ? tablesResponse : [];
+
+  // Fetch menu items
+  const { data: menuResponse, error: menuError } = useQuery({
+    queryKey: ['menu-items'],
+    queryFn: async () => {
+      const response = await menuAPI.getMenuItems({ limit: 100 });
+      return response.data.data.menuItems || [];
+    },
+    retry: 3,
+  });
+
+  const menuItems = Array.isArray(menuResponse) ? menuResponse : [];
 
   // Mutations
   const updateOrderStatusMutation = useMutation({
@@ -77,6 +111,24 @@ const Orders = () => {
     }
   });
 
+  const createOrderMutation = useMutation({
+    mutationFn: (orderData) => ordersAPI.createOrder(orderData),
+    onSuccess: () => {
+      toast.success('Order created successfully');
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['tables'] });
+      setIsCreateOrderModalOpen(false);
+      setSelectedTable(null);
+      setOrderItems([]);
+      setCustomerInfo({ name: '', phone: '', email: '' });
+      setOrderNotes('');
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to create order');
+      console.error('Create order error:', error);
+    }
+  });
+
   const handleViewDetails = (order) => {
     setSelectedOrder(order);
     setIsDetailsModalOpen(true);
@@ -97,6 +149,87 @@ const Orders = () => {
 
   const handlePaymentStatusChange = (orderId, newPaymentStatus) => {
     updatePaymentStatusMutation.mutate({ orderId, paymentStatus: newPaymentStatus });
+  };
+
+  const handleCreateOrder = () => {
+    setIsCreateOrderModalOpen(true);
+  };
+
+  const handleAddMenuItem = (menuItem) => {
+    setOrderItems(prev => {
+      const existing = prev.find(item => item.menuItem._id === menuItem._id);
+      if (existing) {
+        return prev.map(item =>
+          item.menuItem._id === menuItem._id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      } else {
+        return [...prev, {
+          menuItem: menuItem,
+          quantity: 1,
+          specialInstructions: ''
+        }];
+      }
+    });
+  };
+
+  const handleUpdateItemQuantity = (menuItemId, quantity) => {
+    if (quantity <= 0) {
+      setOrderItems(prev => prev.filter(item => item.menuItem._id !== menuItemId));
+    } else {
+      setOrderItems(prev => prev.map(item =>
+        item.menuItem._id === menuItemId
+          ? { ...item, quantity }
+          : item
+      ));
+    }
+  };
+
+  const handleSubmitOrder = () => {
+    if (!selectedTable || !selectedTable._id) {
+      toast.error('Please select a valid table');
+      return;
+    }
+    if (orderItems.length === 0) {
+      toast.error('Please add at least one item');
+      return;
+    }
+
+    // Validate order items
+    for (const item of orderItems) {
+      if (!item.menuItem || !item.menuItem._id) {
+        toast.error('Invalid menu item in order');
+        return;
+      }
+      if (!item.quantity || item.quantity <= 0) {
+        toast.error('Invalid quantity for menu item');
+        return;
+      }
+    }
+
+    const orderData = {
+      tableId: selectedTable._id,
+      items: orderItems.map(item => ({
+        menuItemId: item.menuItem._id,
+        quantity: item.quantity,
+        specialInstructions: item.specialInstructions || ''
+      })),
+      customer: {
+        name: customerInfo.name || 'Walk-in Customer',
+        phone: customerInfo.phone || '',
+        email: customerInfo.email || ''
+      },
+      orderType: 'dine_in',
+      notes: orderNotes || '',
+      discount: 0
+    };
+
+    console.log('Submitting order with data:', orderData);
+    console.log('Selected table:', selectedTable);
+    console.log('Order items:', orderItems);
+    
+    createOrderMutation.mutate(orderData);
   };
 
   useEffect(() => {
@@ -187,7 +320,7 @@ const Orders = () => {
       {!isLoading && !isError && (
       <>
       {/* Page Background Blur when Modal is Open */}
-      {(isDetailsModalOpen || isDeleteModalOpen) && (
+      {(isDetailsModalOpen || isDeleteModalOpen || isCreateOrderModalOpen) && (
         <div className="fixed inset-0 backdrop-blur-sm z-40 pointer-events-none" />
       )}
 
@@ -198,6 +331,13 @@ const Orders = () => {
           <p className="text-gray-600">Manage and track all restaurant orders</p>
         </div>
         <div className="flex items-center gap-2 mt-4 sm:mt-0">
+          <button 
+            onClick={handleCreateOrder}
+            className="btn-primary flex items-center"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Order
+          </button>
           <button 
             onClick={() => refetch()}
             disabled={isLoading}
@@ -580,6 +720,201 @@ const Orders = () => {
                 <button
                   onClick={() => setIsDeleteModalOpen(false)}
                   disabled={deleteOrderMutation.isPending}
+                  className="btn-outline w-full sm:w-auto cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Order Modal */}
+      {isCreateOrderModalOpen && (
+        <div className="fixed inset-0 overflow-y-auto h-full w-full z-50">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+              {/* Modal header */}
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium leading-6 text-gray-900 flex items-center">
+                    <Plus className="h-5 w-5 mr-2 text-primary-600" />
+                    Create New Order
+                  </h3>
+                  <button
+                    onClick={() => setIsCreateOrderModalOpen(false)}
+                    className="text-gray-400 hover:text-gray-600 cursor-pointer transition-colors"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal body */}
+              <div className="bg-white px-4 py-5 sm:p-6 max-h-96 overflow-y-auto">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Left Column - Table and Customer Info */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Select Table *
+                      </label>
+                      <select
+                        value={selectedTable?._id || ''}
+                        onChange={(e) => {
+                          const table = tables.find(t => t._id === e.target.value);
+                          setSelectedTable(table);
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      >
+                        <option value="">
+                          {tablesError ? 'Error loading tables' : 'Choose a table...'}
+                        </option>
+                        {tables.filter(table => table.status === 'available').map(table => (
+                          <option key={table._id} value={table._id}>
+                            Table #{table.number} - {table.location} ({table.capacity} seats)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Customer Information
+                      </label>
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          placeholder="Customer name"
+                          value={customerInfo.name}
+                          onChange={(e) => setCustomerInfo(prev => ({ ...prev, name: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                        <input
+                          type="tel"
+                          placeholder="Phone number"
+                          value={customerInfo.phone}
+                          onChange={(e) => setCustomerInfo(prev => ({ ...prev, phone: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                        <input
+                          type="email"
+                          placeholder="Email address"
+                          value={customerInfo.email}
+                          onChange={(e) => setCustomerInfo(prev => ({ ...prev, email: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Order Notes
+                      </label>
+                      <textarea
+                        placeholder="Special instructions or notes..."
+                        value={orderNotes}
+                        onChange={(e) => setOrderNotes(e.target.value)}
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Right Column - Menu Items */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Add Menu Items
+                      </label>
+                      <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md">
+                        {menuError ? (
+                          <div className="p-4 text-center text-red-500">
+                            <p>Error loading menu items</p>
+                            <p className="text-sm">{menuError.message}</p>
+                          </div>
+                        ) : menuItems.filter(item => item.isAvailable).length === 0 ? (
+                          <div className="p-4 text-center text-gray-500">
+                            <p>No menu items available</p>
+                            <p className="text-sm">Please add menu items in the Menu management section</p>
+                          </div>
+                        ) : (
+                          menuItems.filter(item => item.isAvailable).map(item => (
+                            <div key={item._id} className="flex items-center justify-between p-3 border-b border-gray-100 last:border-b-0">
+                              <div className="flex-1">
+                                <h4 className="text-sm font-medium text-gray-900">{item.name}</h4>
+                                <p className="text-sm text-gray-500">{formatCurrency(item.price)}</p>
+                              </div>
+                              <button
+                                onClick={() => handleAddMenuItem(item)}
+                                className="btn-primary text-xs px-3 py-1"
+                              >
+                                Add
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Order Items */}
+                {orderItems.length > 0 && (
+                  <div className="mt-6">
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">Order Items</h4>
+                    <div className="space-y-2">
+                      {orderItems.map((item) => (
+                        <div key={item.menuItem._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+                          <div className="flex-1">
+                            <h5 className="text-sm font-medium text-gray-900">{item.menuItem.name}</h5>
+                            <p className="text-sm text-gray-500">{formatCurrency(item.menuItem.price)} each</p>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => handleUpdateItemQuantity(item.menuItem._id, item.quantity - 1)}
+                              className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300 text-xs"
+                            >
+                              -
+                            </button>
+                            <span className="font-medium text-gray-900 min-w-[1.5rem] text-center">
+                              {item.quantity}
+                            </span>
+                            <button
+                              onClick={() => handleUpdateItemQuantity(item.menuItem._id, item.quantity + 1)}
+                              className="w-6 h-6 bg-primary-600 text-white rounded-full flex items-center justify-center hover:bg-primary-700 text-xs"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex justify-between items-center">
+                        <span className="text-lg font-semibold text-gray-900">Total</span>
+                        <span className="text-lg font-bold text-gray-900">
+                          {formatCurrency(orderItems.reduce((total, item) => total + (item.menuItem.price * item.quantity), 0))}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal footer */}
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
+                <button
+                  onClick={handleSubmitOrder}
+                  disabled={createOrderMutation.isPending || !selectedTable || orderItems.length === 0}
+                  className="btn-primary w-full sm:w-auto cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {createOrderMutation.isPending ? 'Creating Order...' : 'Create Order'}
+                </button>
+                <button
+                  onClick={() => setIsCreateOrderModalOpen(false)}
+                  disabled={createOrderMutation.isPending}
                   className="btn-outline w-full sm:w-auto cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel

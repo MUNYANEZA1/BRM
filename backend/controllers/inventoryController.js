@@ -287,7 +287,7 @@ const deleteInventoryItem = async (req, res) => {
 const updateStock = async (req, res) => {
   try {
     const { id } = req.params;
-    const { quantity, operation, reason } = req.body;
+    const { quantity, operation, reason = 'other', notes = '' } = req.body;
 
     if (!quantity || quantity <= 0) {
       return res.status(400).json({
@@ -321,10 +321,7 @@ const updateStock = async (req, res) => {
     }
 
     const oldStock = inventoryItem.currentStock;
-    await inventoryItem.updateStock(quantity, operation);
-
-    // Log stock movement (development only – consider using a proper audit model)
-    // console.log removed
+    await inventoryItem.updateStock(quantity, operation, reason, notes, req.user._id);
 
     res.json({
       success: true,
@@ -341,6 +338,62 @@ const updateStock = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error during stock update'
+    });
+  }
+};
+
+// Get stock movements for an inventory item
+const getStockMovements = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { limit = 20, page = 1 } = req.query;
+
+    const inventoryItem = await InventoryItem.findById(id)
+      .select('stockMovements name sku')
+      .populate('stockMovements.recordedBy', 'firstName lastName username');
+
+    if (!inventoryItem) {
+      return res.status(404).json({
+        success: false,
+        message: 'Inventory item not found'
+      });
+    }
+
+    try {
+      checkCompanyAccess(inventoryItem, req.user);
+    } catch (error) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    // Sort movements by date (newest first)
+    const sortedMovements = inventoryItem.stockMovements.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    // Pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const paginatedMovements = sortedMovements.slice(skip, skip + parseInt(limit));
+
+    res.json({
+      success: true,
+      data: {
+        itemName: inventoryItem.name,
+        sku: inventoryItem.sku,
+        movements: paginatedMovements,
+        pagination: {
+          current: parseInt(page),
+          pages: Math.ceil(sortedMovements.length / parseInt(limit)),
+          total: sortedMovements.length,
+          limit: parseInt(limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get stock movements error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching stock movements'
     });
   }
 };
@@ -538,6 +591,7 @@ module.exports = {
   updateInventoryItem,
   deleteInventoryItem,
   updateStock,
+  getStockMovements,
   getLowStockItems,
   getExpiringItems,
   getOutOfStockItems,

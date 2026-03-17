@@ -7,6 +7,7 @@ const {
   updateInventoryItem,
   deleteInventoryItem,
   updateStock,
+  getStockMovements,
   getLowStockItems,
   getExpiringItems,
   getOutOfStockItems,
@@ -35,6 +36,7 @@ router.delete('/:id', isAdminOrManager, deleteInventoryItem);
 
 // Stock management routes
 router.patch('/:id/stock', canManageInventory, updateStock);
+router.get('/:id/movements', canManageInventory, getStockMovements);
 router.post('/bulk-stock-update', canManageInventory, bulkStockUpdate);
 
 module.exports = router;

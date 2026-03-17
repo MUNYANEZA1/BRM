@@ -8,7 +8,14 @@ const getAllTables = async (req, res) => {
     const { location, status, isActive } = req.query;
     
     // Build filter object
-    const filter = createCompanyFilter(req.user);
+    let filter = {};
+    try {
+      filter = createCompanyFilter(req.user);
+    } catch (error) {
+      // For development: if user has no company, don't filter by company
+      console.log('User has no company assigned, skipping company filter for tables');
+    }
+    
     // Only add isActive filter if explicitly provided
     if (isActive !== undefined) {
       filter.isActive = isActive === 'true' || isActive === true;

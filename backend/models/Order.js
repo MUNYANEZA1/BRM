@@ -138,8 +138,8 @@ const orderSchema = new mongoose.Schema({
   },
   company: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company',
-    required: true
+    ref: 'Company'
+    // required: true - temporarily removed for development
   }
 }, {
   timestamps: true
@@ -160,8 +160,9 @@ orderSchema.pre('save', function(next) {
   if (!this.orderNumber && this.isNew) {
     const date = new Date();
     const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
-    const timeStr = Date.now().toString().slice(-6);
-    this.orderNumber = `ORD${dateStr}${timeStr}`;
+    const timeStr = Date.now().toString().slice(-8); // Use more digits for uniqueness
+    const randomStr = Math.random().toString(36).substring(2, 5).toUpperCase(); // Add random component
+    this.orderNumber = `ORD${dateStr}${timeStr}${randomStr}`;
   }
   next();
 });

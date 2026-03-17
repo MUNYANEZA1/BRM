@@ -182,11 +182,8 @@ const getAllMenuItems = async (req, res) => {
         ? new mongoose.Types.ObjectId(req.user.company)
         : req.user.company;
     } else {
-      // user has no company assigned – this should be rare. Returning empty set.
-      return res.json({
-        success: true,
-        data: { menuItems: [], pagination: { current:1, pages:0, total:0, limit:parseInt(limit) } }
-      });
+      // For development: if user has no company, don't filter by company
+      console.log('User has no company assigned, skipping company filter');
     }
 
     // default visibility: only active items unless explicitly overridden

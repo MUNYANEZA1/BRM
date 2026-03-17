@@ -142,15 +142,12 @@ export const inventoryAPI = {
     api.delete(`/inventory/${id}`),
   updateStock: (id, data) =>
     api.patch(`/inventory/${id}/stock`, data),
+  getStockMovements: (id, params) =>
+    api.get(`/inventory/${id}/movements`, { params }),
   getLowStockItems: () =>
     api.get('/inventory/low-stock'),
   getExpiringItems: () =>
     api.get('/inventory/expiring'),
-
-  getStockMovements: (params) =>
-    api.get('/inventory/movements', { params }),
-  createStockMovement: (data) =>
-    api.post('/inventory/movements', data),
 };
 
 // ================= REPORTS API =================

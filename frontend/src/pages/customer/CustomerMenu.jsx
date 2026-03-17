@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Minus, ShoppingCart, Search, Filter, LogOut } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
-import { menuAPI, API_BASE_URL } from '../../services/api';
+import { menuAPI, ordersAPI, API_BASE_URL } from '../../services/api';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const CustomerMenu = () => {
@@ -143,6 +144,55 @@ const CustomerMenu = () => {
 
   const getCartItemsCount = () => {
     return cart.reduce((total, item) => total + item.quantity, 0);
+  };
+
+  // Place order mutation
+  const placeOrderMutation = useMutation({
+    mutationFn: async (orderData) => {
+      const response = await ordersAPI.createOrder(orderData);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      toast.success('Order placed successfully!');
+      setCart([]); // Clear cart after successful order
+      setShowCart(false);
+      // Optionally navigate to order confirmation page
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to place order');
+      console.error('Place order error:', error);
+    }
+  });
+
+  const handlePlaceOrder = () => {
+    if (!tableId) {
+      toast.error('Table ID is required to place an order');
+      return;
+    }
+
+    if (cart.length === 0) {
+      toast.error('Your cart is empty');
+      return;
+    }
+
+    const orderData = {
+      tableId,
+      items: cart.map(item => ({
+        menuItemId: item._id || item.id,
+        quantity: item.quantity,
+        specialInstructions: '' // Could add a field for this later
+      })),
+      customer: {
+        name: user?.name || 'Customer',
+        phone: user?.phone || '',
+        email: user?.email || ''
+      },
+      orderType: 'dine_in',
+      notes: '',
+      discount: 0
+    };
+
+    placeOrderMutation.mutate(orderData);
   };
 
   return (
@@ -399,8 +449,12 @@ const CustomerMenu = () => {
                       </div>
                       
                       {isAuthenticated ? (
-                        <button className="btn-primary w-full">
-                          Place Order
+                        <button 
+                          onClick={handlePlaceOrder}
+                          disabled={placeOrderMutation.isPending}
+                          className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {placeOrderMutation.isPending ? 'Placing Order...' : 'Place Order'}
                         </button>
                       ) : (
                         <button

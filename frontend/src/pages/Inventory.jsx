@@ -9,7 +9,8 @@ import {
   Edit,
   Trash2,
   BarChart3,
-  X
+  X,
+  History
 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -24,10 +25,13 @@ const Inventory = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [stockUpdateData, setStockUpdateData] = useState({
     quantity: 0,
-    operation: 'add'
+    operation: 'add',
+    reason: 'other',
+    notes: ''
   });
   const queryClient = useQueryClient();
   const [imageFile, setImageFile] = useState(null);
@@ -69,6 +73,22 @@ const Inventory = () => {
     },
     retry: 3,
     retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
+  });
+
+  // Fetch stock movements for selected item
+  const { data: stockMovements = [], isLoading: isLoadingMovements } = useQuery({
+    queryKey: ['stockMovements', selectedItem?._id],
+    queryFn: async () => {
+      if (!selectedItem?._id) return [];
+      try {
+        const response = await inventoryAPI.getStockMovements(selectedItem._id, { limit: 50 });
+        return response.data.data.movements || [];
+      } catch (err) {
+        console.error('Error fetching stock movements:', err);
+        return [];
+      }
+    },
+    enabled: !!selectedItem?._id && isHistoryModalOpen,
   });
 
   // Create inventory item mutation
@@ -144,9 +164,10 @@ const Inventory = () => {
     onSuccess: async (response) => {
       toast.success(response.data.message || 'Stock updated successfully');
       await queryClient.invalidateQueries({ queryKey: ['inventoryItems'] });
+      await queryClient.invalidateQueries({ queryKey: ['stockMovements'] });
       setIsStockModalOpen(false);
       setSelectedItem(null);
-      setStockUpdateData({ quantity: 0, operation: 'add' });
+      setStockUpdateData({ quantity: 0, operation: 'add', reason: 'other', notes: '' });
     },
     onError: (error) => {
       const message = error.response?.data?.message || 'Failed to update stock';
@@ -193,13 +214,18 @@ const Inventory = () => {
 
   const handleUpdateStock = (item) => {
     setSelectedItem(item);
-    setStockUpdateData({ quantity: 0, operation: 'add' });
+    setStockUpdateData({ quantity: 0, operation: 'add', reason: 'other', notes: '' });
     setIsStockModalOpen(true);
   };
 
   const handleDeleteItem = (item) => {
     setSelectedItem(item);
     setIsDeleteModalOpen(true);
+  };
+
+  const handleShowHistory = (item) => {
+    setSelectedItem(item);
+    setIsHistoryModalOpen(true);
   };
 
   const handleEditImageChange = (e) => {
@@ -804,6 +830,13 @@ const Inventory = () => {
                             <Package className="h-4 w-4" />
                           </button>
                           <button 
+                            onClick={() => handleShowHistory(item)}
+                            className="text-blue-600 hover:text-blue-900 transition-colors cursor-pointer" 
+                            title="View History"
+                          >
+                            <History className="h-4 w-4" />
+                          </button>
+                          <button 
                             onClick={() => handleEditItem(item)}
                             className="text-gray-600 hover:text-gray-900 transition-colors cursor-pointer" 
                             title="Edit Item"
@@ -1099,7 +1132,72 @@ const Inventory = () => {
                   step="0.01"
                   required
                 />
+                {stockUpdateData.operation === 'subtract' && (
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setStockUpdateData({ ...stockUpdateData, quantity: 1 })}
+                      className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded cursor-pointer"
+                    >
+                      1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStockUpdateData({ ...stockUpdateData, quantity: 2 })}
+                      className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded cursor-pointer"
+                    >
+                      2
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStockUpdateData({ ...stockUpdateData, quantity: 5 })}
+                      className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded cursor-pointer"
+                    >
+                      5
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStockUpdateData({ ...stockUpdateData, quantity: 10 })}
+                      className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded cursor-pointer"
+                    >
+                      10
+                    </button>
+                  </div>
+                )}
               </div>
+
+              {stockUpdateData.operation === 'subtract' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                  <select
+                    value={stockUpdateData.reason}
+                    onChange={(e) => setStockUpdateData({ ...stockUpdateData, reason: e.target.value })}
+                    className="input w-full"
+                  >
+                    <option value="used">Used in Service</option>
+                    <option value="damaged">Damaged</option>
+                    <option value="expired">Expired</option>
+                    <option value="spilled">Spilled</option>
+                    <option value="inventory_adjustment">Inventory Adjustment</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              )}
+
+              {stockUpdateData.operation === 'subtract' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
+                  <textarea
+                    value={stockUpdateData.notes}
+                    onChange={(e) => setStockUpdateData({ ...stockUpdateData, notes: e.target.value })}
+                    className="input w-full"
+                    placeholder="Add any additional details..."
+                    rows="2"
+                    maxLength="200"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">{stockUpdateData.notes.length}/200</p>
+                </div>
+              )}
 
               {stockUpdateData.operation === 'set' && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
@@ -1123,24 +1221,116 @@ const Inventory = () => {
                 </div>
               )}
 
-              <div className="border-t border-gray-200 pt-4 flex justify-end space-x-3">
+              <div className="border-t border-gray-200 pt-4 flex justify-between space-x-3">
                 <button
                   type="button"
-                  onClick={() => setIsStockModalOpen(false)}
-                  className="btn-outline cursor-pointer"
-                  disabled={updateStockMutation.isPending}
+                  onClick={() => setIsHistoryModalOpen(true)}
+                  className="text-sm text-blue-600 hover:text-blue-900 font-medium cursor-pointer"
                 >
-                  Cancel
+                  View History
                 </button>
-                <button
-                  type="submit"
-                  className="btn-primary cursor-pointer"
-                  disabled={updateStockMutation.isPending}
-                >
-                  {updateStockMutation.isPending ? 'Updating...' : 'Update Stock'}
-                </button>
+                <div className="flex space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsStockModalOpen(false)}
+                    className="btn-outline cursor-pointer"
+                    disabled={updateStockMutation.isPending}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-primary cursor-pointer"
+                    disabled={updateStockMutation.isPending}
+                  >
+                    {updateStockMutation.isPending ? 'Updating...' : 'Update Stock'}
+                  </button>
+                </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Stock History Modal */}
+      {isHistoryModalOpen && selectedItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">Stock History: {selectedItem.name}</h2>
+              <button 
+                onClick={() => setIsHistoryModalOpen(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {isLoadingMovements ? (
+                <div className="flex items-center justify-center py-8">
+                  <p className="text-gray-500">Loading stock movements...</p>
+                </div>
+              ) : stockMovements && stockMovements.length > 0 ? (
+                <div className="space-y-4">
+                  {stockMovements.map((movement, idx) => (
+                    <div key={idx} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              movement.operation === 'add' ? 'bg-green-100 text-green-800' :
+                              movement.operation === 'subtract' ? 'bg-orange-100 text-orange-800' :
+                              'bg-blue-100 text-blue-800'
+                            }`}>
+                              {movement.operation === 'add' ? 'Added' : movement.operation === 'subtract' ? 'Removed' : 'Set'}
+                            </span>
+                            <span className="text-sm font-medium text-gray-900">
+                              {Math.abs(movement.quantity)} {selectedItem.unit}
+                            </span>
+                          </div>
+                          
+                          <p className="text-sm text-gray-600 mb-1">
+                            <span className="font-medium">{movement.previousStock}</span> 
+                            <span className="text-gray-400 mx-2">→</span>
+                            <span className="font-medium">{movement.newStock}</span> {selectedItem.unit}
+                          </p>
+
+                          {movement.reason !== 'other' && (
+                            <p className="text-sm text-gray-600">
+                              <span className="font-medium">Reason:</span> {movement.reason.replace(/_/g, ' ')}
+                            </p>
+                          )}
+
+                          {movement.notes && (
+                            <p className="text-sm text-gray-600 mt-1">
+                              <span className="font-medium">Notes:</span> {movement.notes}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right text-xs text-gray-500">
+                          <p>{new Date(movement.date).toLocaleDateString()}</p>
+                          <p>{new Date(movement.date).toLocaleTimeString()}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-gray-500">No stock movements recorded</p>
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-gray-200 px-6 py-4 flex justify-end">
+              <button
+                onClick={() => setIsHistoryModalOpen(false)}
+                className="btn-outline cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

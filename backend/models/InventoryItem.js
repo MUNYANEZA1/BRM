@@ -95,7 +95,46 @@ const inventoryItemSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Company',
     required: true
-  }
+  },
+  stockMovements: [
+    {
+      date: {
+        type: Date,
+        default: Date.now
+      },
+      operation: {
+        type: String,
+        enum: ['add', 'subtract', 'set'],
+        required: true
+      },
+      quantity: {
+        type: Number,
+        required: true
+      },
+      reason: {
+        type: String,
+        enum: ['used', 'damaged', 'expired', 'spilled', 'inventory_adjustment', 'restocking', 'other'],
+        default: 'other'
+      },
+      notes: {
+        type: String,
+        trim: true,
+        maxlength: [200, 'Notes cannot exceed 200 characters']
+      },
+      previousStock: {
+        type: Number,
+        required: true
+      },
+      newStock: {
+        type: Number,
+        required: true
+      },
+      recordedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      }
+    }
+  ]
 }, {
   timestamps: true
 });
@@ -162,8 +201,10 @@ inventoryItemSchema.statics.findOutOfStock = function() {
   }).sort({ name: 1 });
 };
 
-// Method to update stock
-inventoryItemSchema.methods.updateStock = function(quantity, operation = 'add') {
+// Method to update stock with movement tracking
+inventoryItemSchema.methods.updateStock = function(quantity, operation = 'add', reason = 'other', notes = '', recordedBy = null) {
+  const previousStock = this.currentStock;
+  
   if (operation === 'add') {
     this.currentStock += quantity;
     this.lastRestocked = new Date();
@@ -172,6 +213,19 @@ inventoryItemSchema.methods.updateStock = function(quantity, operation = 'add') 
   } else if (operation === 'set') {
     this.currentStock = Math.max(0, quantity);
   }
+  
+  // Record the stock movement
+  this.stockMovements.push({
+    operation,
+    quantity,
+    reason,
+    notes,
+    previousStock,
+    newStock: this.currentStock,
+    recordedBy,
+    date: new Date()
+  });
+  
   return this.save();
 };
 
